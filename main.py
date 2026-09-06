@@ -4,13 +4,18 @@ Sistema de controle de serviços com cadastro de funcionários,
 controle de salários, gastos, faltas, adiantamentos e anotações.
 """
 
+import logging
+import re
 from datetime import date, datetime
+from html import escape
 
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import extract
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from database import Base, SessionLocal, engine
@@ -22,6 +27,66 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Controle de Serviços")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+logger = logging.getLogger(__name__)
+
+
+def error_response(status_code: int, title: str, message: str) -> HTMLResponse:
+    """Retorna uma página curta e segura para erros exibidos ao usuário."""
+    safe_title = escape(title)
+    safe_message = escape(message)
+    content = f"""
+    <!doctype html>
+        <html lang="pt-br">
+            <head><meta charset="UTF-8"><title>{safe_title} · Controle de Serviços</title>
+      <style>
+        body {{ margin: 0; padding: 48px 20px; background: #101418; color: #edf2f1;
+          font: 16px system-ui, sans-serif; }}
+        main {{ max-width: 560px; margin: auto; padding: 32px; background: #171d23;
+          border: 1px solid #2b3741; border-radius: 14px; }}
+        h1 {{ margin-top: 0; }} p {{ color: #9ba9ad; line-height: 1.6; }}
+        a {{ color: #a7e1d8; font-weight: 700; }}
+      </style></head>
+    <body><main><h1>{safe_title}</h1><p>{safe_message}</p>
+        <a href="/">Voltar ao painel</a></main></body>
+    </html>
+    """
+    return HTMLResponse(content=content, status_code=status_code)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    del request
+    return error_response(exc.status_code, "Não foi possível concluir", str(exc.detail))
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning("Dados inválidos recebidos em %s: %s", request.url.path, exc.errors())
+    return error_response(
+        422,
+        "Dados inválidos",
+        "Confira os campos preenchidos e tente novamente.",
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+    logger.exception("Erro de banco de dados em %s", request.url.path, exc_info=exc)
+    return error_response(
+        500,
+        "Erro ao acessar os dados",
+        "Não foi possível concluir a operação agora. Tente novamente em instantes.",
+    )
+
+
+@app.exception_handler(Exception)
+async def unexpected_exception_handler(request: Request, exc: Exception):
+    logger.exception("Erro inesperado em %s", request.url.path, exc_info=exc)
+    return error_response(
+        500,
+        "Algo deu errado",
+        "Ocorreu um erro inesperado. Tente novamente ou volte ao painel.",
+    )
 
 
 def format_money(value) -> str:
@@ -35,8 +100,35 @@ def format_date(value) -> str:
     return value.strftime("%d/%m/%Y")
 
 
+def normalize_phone(value: str | None) -> str | None:
+    """Normaliza e valida celular brasileiro com DDD (11 dígitos)."""
+    if not value:
+        return None
+    digits = re.sub(r"\D", "", value)
+    if not re.fullmatch(r"[1-9]{2}9\d{8}", digits):
+        raise HTTPException(
+            status_code=400,
+            detail="Informe um celular válido com DDD e 11 dígitos.",
+        )
+    return digits
+
+
+def format_phone(value) -> str:
+    """Exibe um celular normalizado no formato conhecido pelo usuário."""
+    digits = re.sub(r"\D", "", value or "")
+    if len(digits) == 11:
+        return f"({digits[:2]}) {digits[2:7]}-{digits[7:]}"
+    return value or "Não informado"
+
+
+def phone_digits(value) -> str:
+    return re.sub(r"\D", "", value or "")
+
+
 templates.env.filters["money"] = format_money
 templates.env.filters["data"] = format_date
+templates.env.filters["telefone"] = format_phone
+templates.env.filters["digitos"] = phone_digits
 
 CATEGORIES = ["Materiais", "Transporte", "Ferramentas", "Alimentação", "Administrativo", "Outros"]
 MONTHS = [
@@ -53,7 +145,13 @@ def parse_date(value: str | None) -> date | None:
     """Converte string 'YYYY-MM-DD' vinda de formulário HTML em date."""
     if not value:
         return None
-    return datetime.strptime(value, "%Y-%m-%d").date()
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="A data informada é inválida. Use o formato correto.",
+        ) from exc
 
 
 def get_session() -> Session:
@@ -82,7 +180,26 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
 
         employees = db.query(Employee).all()
         active_employees = [e for e in employees if e.active]
-        monthly_payroll = sum(e.salary for e in active_employees)
+
+        settled_advances = (
+            db.query(Advance)
+            .filter(
+                Advance.status == "settled",
+                extract("month", Advance.date) == month,
+                extract("year", Advance.date) == year,
+            )
+            .all()
+        )
+        settled_by_employee = {}
+        for advance in settled_advances:
+            settled_by_employee[advance.employee_id] = (
+                settled_by_employee.get(advance.employee_id, 0) + advance.amount
+            )
+
+        monthly_payroll = sum(
+            max(0, e.salary - settled_by_employee.get(e.id, 0))
+            for e in active_employees
+        )
 
         month_expenses = (
             db.query(Expense)
@@ -98,7 +215,29 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
         )
         monthly_advances_total = sum(a.amount for a in month_advances)
 
-        open_absence_days = sum(a.days for a in db.query(Absence).filter(Absence.justified.is_(False)).all())
+        month_absences = (
+            db.query(Absence)
+            .filter(
+                Absence.justified.is_(False),
+                extract("month", Absence.date) == month,
+                extract("year", Absence.date) == year,
+            )
+            .order_by(Absence.date.desc())
+            .all()
+        )
+        absence_by_employee = {}
+        for absence in month_absences:
+            absence_by_employee.setdefault(absence.employee_id, []).append(absence)
+
+        absence_employees = [
+            {
+                "employee": employee,
+                "days": sum(a.days for a in absences),
+            }
+            for employee in employees
+            if (absences := absence_by_employee.get(employee.id))
+        ]
+        open_absence_days = sum(item["days"] for item in absence_employees)
         open_advances_count = db.query(Advance).filter(Advance.status == "open").count()
 
         recent_expenses = db.query(Expense).order_by(Expense.date.desc()).limit(5).all()
@@ -109,6 +248,7 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
             "total_employees": len(employees),
             "active_employees": len(active_employees),
             "monthly_payroll": monthly_payroll,
+            "settled_advances": sum(a.amount for a in settled_advances),
             "monthly_expenses": monthly_expenses_total,
             "monthly_total": monthly_payroll + monthly_expenses_total,
             "monthly_advances": monthly_advances_total,
@@ -124,6 +264,7 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
                 "page": "dashboard",
                 "summary": summary,
                 "recent_expenses": recent_expenses,
+                "absence_employees": absence_employees,
                 "months": MONTHS,
                 "years": [year - 1, year, year + 1],
                 "today": today,
@@ -185,7 +326,7 @@ def create_employee(
         employee = Employee(
             name=name.strip(),
             role=role.strip(),
-            phone=phone or None,
+            phone=normalize_phone(phone),
             email=email or None,
             salary=salary,
             hire_date=parse_date(hire_date),
@@ -215,7 +356,7 @@ def update_employee(
         if employee:
             employee.name = name.strip()
             employee.role = role.strip()
-            employee.phone = phone or None
+            employee.phone = normalize_phone(phone)
             employee.email = email or None
             employee.salary = salary
             employee.hire_date = parse_date(hire_date)

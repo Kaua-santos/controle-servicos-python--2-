@@ -18,7 +18,7 @@
     <div class="form-grid">
       <div class="field"><label>Nome completo *</label><input class="input" name="name" required placeholder="Ex.: Rafael Nascimento"></div>
       <div class="field"><label>Função *</label><input class="input" name="role" required placeholder="Ex.: Técnico de campo"></div>
-      <div class="field"><label>Telefone</label><input class="input" name="phone" placeholder="(11) 98888-0000"></div>
+      <div class="field"><label>Celular</label><input class="input" type="tel" inputmode="numeric" autocomplete="tel" name="phone" maxlength="11" pattern="[0-9]{11}" title="Informe 11 dígitos, incluindo o DDD" placeholder="11988880000"></div>
       <div class="field"><label>E-mail</label><input class="input" type="email" name="email" placeholder="nome@empresa.com"></div>
       <div class="field"><label>Salário mensal *</label><input class="input" type="number" step="0.01" min="0" name="salary" required placeholder="0,00"></div>
       <div class="field"><label>Data de admissão</label><input class="input" type="date" name="hire_date"></div>
@@ -53,7 +53,7 @@
   <div class="row">
     <div class="row-main">
       <div class="row-title">{{ e.name }}</div>
-      <div class="row-sub">{{ e.role }} · {{ e.email or 'Sem e-mail' }} · {{ e.phone or 'Sem telefone' }}</div>
+      <div class="row-sub">{{ e.role }} · {{ e.email or 'Sem e-mail' }} · {{ e.phone|telefone }}</div>
     </div>
     <div class="row-side">
       <span class="amount">{{ e.salary|money }}</span>
@@ -74,7 +74,7 @@
       <div class="form-grid">
         <div class="field"><label>Nome completo *</label><input class="input" name="name" required value="{{ e.name }}"></div>
         <div class="field"><label>Função *</label><input class="input" name="role" required value="{{ e.role }}"></div>
-        <div class="field"><label>Telefone</label><input class="input" name="phone" value="{{ e.phone or '' }}"></div>
+        <div class="field"><label>Celular</label><input class="input" type="tel" inputmode="numeric" autocomplete="tel" name="phone" maxlength="11" pattern="[0-9]{11}" title="Informe 11 dígitos, incluindo o DDD" value="{{ e.phone|digitos }}"></div>
         <div class="field"><label>E-mail</label><input class="input" type="email" name="email" value="{{ e.email or '' }}"></div>
         <div class="field"><label>Salário mensal *</label><input class="input" type="number" step="0.01" min="0" name="salary" required value="{{ e.salary }}"></div>
         <div class="field"><label>Data de admissão</label><input class="input" type="date" name="hire_date" value="{{ e.hire_date }}"></div>
