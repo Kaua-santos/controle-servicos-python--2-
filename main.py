@@ -72,6 +72,14 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
         month = month or today.month
         year = year or today.year
 
+        hour = datetime.now().hour
+        if 5 <= hour < 12:
+            saudacao = "Bom dia 👋"
+        elif 12 <= hour < 18:
+            saudacao = "Boa tarde 👋"
+        else:
+            saudacao = "Boa noite 👋"
+
         employees = db.query(Employee).all()
         active_employees = [e for e in employees if e.active]
         monthly_payroll = sum(e.salary for e in active_employees)
@@ -110,15 +118,16 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
         }
 
         return templates.TemplateResponse(
-            "dashboard.html",
-            {
-                "request": request,
+            request=request,
+            name="dashboard.html",
+            context={
                 "page": "dashboard",
                 "summary": summary,
                 "recent_expenses": recent_expenses,
                 "months": MONTHS,
                 "years": [year - 1, year, year + 1],
                 "today": today,
+                "saudacao": saudacao,
             },
         )
     finally:
@@ -148,9 +157,9 @@ def list_employees(request: Request, status: str = "all", q: str = ""):
             ]
 
         return templates.TemplateResponse(
-            "funcionarios.html",
-            {
-                "request": request,
+            request=request,
+            name="funcionarios.html",
+            context={
                 "page": "funcionarios",
                 "employees": employees,
                 "status": status,
@@ -265,9 +274,9 @@ def list_expenses(request: Request, month: int | None = None, year: int | None =
         employees = db.query(Employee).filter(Employee.active.is_(True)).order_by(Employee.name).all()
 
         return templates.TemplateResponse(
-            "gastos.html",
-            {
-                "request": request,
+            request=request,
+            name="gastos.html",
+            context={
                 "page": "gastos",
                 "expenses": expenses,
                 "total": total,
@@ -338,9 +347,9 @@ def registros(request: Request, tab: str = "faltas"):
         open_advance_total = sum(a.amount for a in advances if a.status == "open")
 
         return templates.TemplateResponse(
-            "registros.html",
-            {
-                "request": request,
+            request=request,
+            name="registros.html",
+            context={
                 "page": "registros",
                 "tab": tab,
                 "employees": employees,

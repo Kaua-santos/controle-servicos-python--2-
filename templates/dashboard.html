@@ -6,7 +6,7 @@
 <div class="page-header">
   <div>
     <div class="page-eyebrow">Painel de comando</div>
-    <h2>Bom dia 👋</h2>
+    <h2 id="saudacao">Bom dia 👋</h2>
     <p class="page-desc">Aqui está o pulso da sua operação hoje.</p>
   </div>
   <form method="get" class="toolbar">
@@ -97,4 +97,22 @@
     <a href="/funcionarios" style="display:inline-block; margin-top:16px; font-size:12px; font-weight:700; color: var(--accent);">Revisar equipe →</a>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const hora = new Date().getHours();
+    let saudacao = 'Boa noite 👋';
+
+    if (hora >= 5 && hora < 12) {
+      saudacao = 'Bom dia 👋';
+    } else if (hora >= 12 && hora < 18) {
+      saudacao = 'Boa tarde 👋';
+    }
+
+    const elemento = document.getElementById('saudacao');
+    if (elemento) {
+      elemento.innerText = saudacao;
+    }
+  });
+</script>
 {% endblock %}

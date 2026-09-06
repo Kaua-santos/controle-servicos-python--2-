@@ -69,7 +69,7 @@
         <span>{{ a.date|data }}</span>
         <span class="amount">{{ a.days }} {{ 'dia' if a.days == 1 else 'dias' }}</span>
         <span class="badge {{ 'badge-green' if a.justified else 'badge-red' }}">{{ 'Justificada' if a.justified else 'Sem justificar' }}</span>
-        <form method="post" action="/registros/faltas/{{ a.id }}/excluir" class="inline" onsubmit="return confirm('Excluir este registro de falta?');">
+        <form method="post" action="/registros/faltas/{{ a.id }}/excluir" class="inline" data-confirm="Excluir este registro de falta? Essa ação não pode ser desfeita.">
           <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
         </form>
       </div>
@@ -111,7 +111,7 @@
       <div class="note-content">{{ n.content }}</div>
       <div class="note-foot">
         <span>{{ n.created_at.strftime('%d/%m/%Y') }}</span>
-        <form method="post" action="/registros/anotacoes/{{ n.id }}/excluir" class="inline" onsubmit="return confirm('Excluir esta anotação?');">
+        <form method="post" action="/registros/anotacoes/{{ n.id }}/excluir" class="inline" data-confirm="Excluir esta anotação? Essa ação não pode ser desfeita.">
           <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
         </form>
       </div>
@@ -171,7 +171,7 @@
             {{ 'Em aberto' if a.status == 'open' else 'Descontado' }}
           </button>
         </form>
-        <form method="post" action="/registros/adiantamentos/{{ a.id }}/excluir" class="inline" onsubmit="return confirm('Excluir este adiantamento?');">
+        <form method="post" action="/registros/adiantamentos/{{ a.id }}/excluir" class="inline" data-confirm="Excluir este adiantamento? Essa ação não pode ser desfeita.">
           <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
         </form>
       </div>

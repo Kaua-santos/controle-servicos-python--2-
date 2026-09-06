@@ -76,7 +76,7 @@
       <span>{{ e.category }}</span>
       <span>{{ e.date|data }}</span>
       <span class="amount">{{ e.amount|money }}</span>
-      <form method="post" action="/gastos/{{ e.id }}/excluir" class="inline" onsubmit="return confirm('Excluir este gasto?');">
+      <form method="post" action="/gastos/{{ e.id }}/excluir" class="inline" data-confirm="Excluir este gasto? Essa ação não pode ser desfeita.">
         <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
       </form>
     </div>

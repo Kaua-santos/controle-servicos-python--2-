@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Controle de Serviços{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=dark-3">
 </head>
 <body>
   <div class="layout">
@@ -43,5 +43,58 @@
       </div>
     </div>
   </div>
+
+  <div id="confirm-modal" class="modal-backdrop" hidden>
+    <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-icon">!</div>
+      <div>
+        <h2 id="confirm-title">Confirmar exclusão</h2>
+        <p id="confirm-message">Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="confirm-cancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirm-delete">Excluir</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      const modal = document.getElementById('confirm-modal');
+      const message = document.getElementById('confirm-message');
+      const cancel = document.getElementById('confirm-cancel');
+      const confirm = document.getElementById('confirm-delete');
+      let pendingForm = null;
+
+      const closeModal = () => {
+        modal.hidden = true;
+        pendingForm = null;
+      };
+
+      document.querySelectorAll('form[data-confirm]').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+          if (form.dataset.confirmed === 'true') return;
+          event.preventDefault();
+          pendingForm = form;
+          message.textContent = form.dataset.confirm;
+          modal.hidden = false;
+          cancel.focus();
+        });
+      });
+
+      cancel.addEventListener('click', closeModal);
+      confirm.addEventListener('click', () => {
+        if (!pendingForm) return;
+        pendingForm.dataset.confirmed = 'true';
+        pendingForm.submit();
+      });
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.hidden) closeModal();
+      });
+    })();
+  </script>
 </body>
 </html>

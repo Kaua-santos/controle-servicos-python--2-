@@ -63,7 +63,7 @@
         </button>
       </form>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('edit-{{ e.id }}').style.display='block';">Editar</button>
-      <form method="post" action="/funcionarios/{{ e.id }}/excluir" class="inline" onsubmit="return confirm('Excluir {{ e.name }}? Essa ação não pode ser desfeita.');">
+      <form method="post" action="/funcionarios/{{ e.id }}/excluir" class="inline" data-confirm="Excluir {{ e.name }}? Essa ação não pode ser desfeita.">
         <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
       </form>
     </div>
