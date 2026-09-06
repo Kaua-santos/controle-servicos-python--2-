@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Registros · Controle de Serviços{% endblock %}
+{% block page_title %}Registros{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-eyebrow">Acompanhamento interno</div>
+    <h2>Registros</h2>
+    <p class="page-desc">Faltas, lembretes e valores combinados, tudo no mesmo lugar.</p>
+  </div>
+</div>
+
+<div class="tabs">
+  <a href="/registros?tab=faltas" class="tab-card {{ 'active' if tab == 'faltas' }}">
+    <div class="t-label">📅 Faltas</div>
+    <div class="t-detail">{{ total_absence_days }} dias registrados</div>
+  </a>
+  <a href="/registros?tab=anotacoes" class="tab-card {{ 'active' if tab == 'anotacoes' }}">
+    <div class="t-label">📝 Anotações</div>
+    <div class="t-detail">{{ notes|length }} salvas</div>
+  </a>
+  <a href="/registros?tab=adiantamentos" class="tab-card {{ 'active' if tab == 'adiantamentos' }}">
+    <div class="t-label">💵 Adiantamentos</div>
+    <div class="t-detail">{{ open_advance_total|money }} em aberto</div>
+  </a>
+</div>
+
+{% if tab == 'faltas' %}
+  <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+    <button class="btn btn-primary" onclick="document.getElementById('form-falta').style.display='block'; this.style.display='none';">+ Registrar falta</button>
+  </div>
+  <div id="form-falta" class="form-card" style="display:none;">
+    <h3>Registrar falta</h3>
+    <form method="post" action="/registros/faltas/novo">
+      <div class="form-grid">
+        <div class="field">
+          <label>Funcionário *</label>
+          <select class="input" name="employee_id" required>
+            <option value="">Selecione</option>
+            {% for e in employees %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Data *</label><input class="input" type="date" name="date" value="{{ today }}" required></div>
+        <div class="field"><label>Quantidade de dias *</label><input class="input" type="number" min="1" name="days" value="1" required></div>
+      </div>
+      <div class="field" style="margin-top:14px;"><label>Motivo / observação *</label><textarea name="reason" rows="3" required placeholder="Ex.: consulta médica, compromisso pessoal..."></textarea></div>
+      <div style="margin-top:14px;">
+        <label class="checkbox-row"><input type="checkbox" name="justified"> Falta justificada</label>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('form-falta').style.display='none';">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Registrar falta</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="table-wrap">
+    {% if not absences %}
+    <div class="empty-state"><h3>Nada por aqui ainda</h3><p>As faltas registradas aparecerão aqui.</p></div>
+    {% else %}
+    {% for a in absences %}
+    <div class="row">
+      <div class="row-main">
+        <div class="row-title">{{ a.employee.name }}</div>
+        <div class="row-sub">{{ a.reason }}</div>
+      </div>
+      <div class="row-side">
+        <span>{{ a.date|data }}</span>
+        <span class="amount">{{ a.days }} {{ 'dia' if a.days == 1 else 'dias' }}</span>
+        <span class="badge {{ 'badge-green' if a.justified else 'badge-red' }}">{{ 'Justificada' if a.justified else 'Sem justificar' }}</span>
+        <form method="post" action="/registros/faltas/{{ a.id }}/excluir" class="inline" onsubmit="return confirm('Excluir este registro de falta?');">
+          <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if tab == 'anotacoes' %}
+  <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+    <button class="btn btn-primary" onclick="document.getElementById('form-nota').style.display='block'; this.style.display='none';">+ Nova anotação</button>
+  </div>
+  <div id="form-nota" class="form-card" style="display:none;">
+    <h3>Nova anotação</h3>
+    <form method="post" action="/registros/anotacoes/novo">
+      <div class="field"><label>Título *</label><input class="input" name="title" required placeholder="Ex.: Retorno para cliente Alfa"></div>
+      <div class="field" style="margin-top:14px;"><label>Anotação *</label><textarea name="content" rows="4" required placeholder="Escreva os detalhes que não podem ser esquecidos..."></textarea></div>
+      <div style="margin-top:14px;">
+        <label class="checkbox-row"><input type="checkbox" name="pinned"> Fixar no alto</label>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('form-nota').style.display='none';">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Salvar anotação</button>
+      </div>
+    </form>
+  </div>
+
+  {% if not notes %}
+  <div class="table-wrap"><div class="empty-state"><h3>Nada por aqui ainda</h3><p>Crie uma anotação para guardar um lembrete importante.</p></div></div>
+  {% else %}
+  <div class="notes-grid">
+    {% for n in notes %}
+    <div class="note-card {{ 'pinned' if n.pinned }}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="note-title">{{ n.title }}</div>
+        {% if n.pinned %}<span>📌</span>{% endif %}
+      </div>
+      <div class="note-content">{{ n.content }}</div>
+      <div class="note-foot">
+        <span>{{ n.created_at.strftime('%d/%m/%Y') }}</span>
+        <form method="post" action="/registros/anotacoes/{{ n.id }}/excluir" class="inline" onsubmit="return confirm('Excluir esta anotação?');">
+          <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endif %}
+
+{% if tab == 'adiantamentos' %}
+  <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+    <button class="btn btn-primary" onclick="document.getElementById('form-adiantamento').style.display='block'; this.style.display='none';">+ Novo adiantamento</button>
+  </div>
+  <div id="form-adiantamento" class="form-card" style="display:none;">
+    <h3>Novo adiantamento</h3>
+    <form method="post" action="/registros/adiantamentos/novo">
+      <div class="form-grid">
+        <div class="field">
+          <label>Funcionário *</label>
+          <select class="input" name="employee_id" required>
+            <option value="">Selecione</option>
+            {% for e in employees %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Valor *</label><input class="input" type="number" step="0.01" min="0" name="amount" required placeholder="0,00"></div>
+        <div class="field"><label>Data do pagamento *</label><input class="input" type="date" name="date" value="{{ today }}" required></div>
+        <div class="field">
+          <label>Situação</label>
+          <select class="input" name="status">
+            <option value="open">Em aberto</option>
+            <option value="settled">Já descontado</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px;"><label>Observação</label><input class="input" name="description" placeholder="Ex.: Adiantamento para despesas pessoais"></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('form-adiantamento').style.display='none';">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Registrar adiantamento</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="table-wrap">
+    {% if not advances %}
+    <div class="empty-state"><h3>Nada por aqui ainda</h3><p>Os adiantamentos registrados aparecerão aqui.</p></div>
+    {% else %}
+    {% for a in advances %}
+    <div class="row">
+      <div class="row-main">
+        <div class="row-title">{{ a.employee.name }}</div>
+        <div class="row-sub">{{ a.description or 'Sem observação' }} · {{ a.date|data }}</div>
+      </div>
+      <div class="row-side">
+        <span class="amount">{{ a.amount|money }}</span>
+        <form method="post" action="/registros/adiantamentos/{{ a.id }}/toggle" class="inline">
+          <button type="submit" class="badge {{ 'badge-gold' if a.status == 'open' else 'badge-green' }}" style="border:none; cursor:pointer;">
+            {{ 'Em aberto' if a.status == 'open' else 'Descontado' }}
+          </button>
+        </form>
+        <form method="post" action="/registros/adiantamentos/{{ a.id }}/excluir" class="inline" onsubmit="return confirm('Excluir este adiantamento?');">
+          <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

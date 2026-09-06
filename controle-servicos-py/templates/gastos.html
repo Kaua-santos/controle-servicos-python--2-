@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Gastos · Controle de Serviços{% endblock %}
+{% block page_title %}Gastos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-eyebrow">Saídas da operação</div>
+    <h2>Gastos</h2>
+    <p class="page-desc">Cada lançamento claro, cada decisão mais segura.</p>
+  </div>
+  <button class="btn btn-primary" onclick="document.getElementById('form-novo-gasto').style.display='block'; this.style.display='none';">+ Novo gasto</button>
+</div>
+
+<div id="form-novo-gasto" class="form-card" style="display:none;">
+  <h3>Novo gasto</h3>
+  <form method="post" action="/gastos/novo">
+    <div class="field" style="margin-bottom:14px;"><label>Descrição *</label><input class="input" name="description" required placeholder="Ex.: Kit de conexões hidráulicas"></div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Categoria *</label>
+        <select class="input" name="category">
+          {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Valor *</label><input class="input" type="number" step="0.01" min="0" name="amount" required placeholder="0,00"></div>
+      <div class="field"><label>Data *</label><input class="input" type="date" name="date" value="{{ today }}" required></div>
+      <div class="field">
+        <label>Vincular funcionário</label>
+        <select class="input" name="employee_id">
+          <option value="">Operação geral</option>
+          {% for e in employees %}<option value="{{ e.id }}">{{ e.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="document.getElementById('form-novo-gasto').style.display='none';">Cancelar</button>
+      <button class="btn btn-primary" type="submit">Registrar gasto</button>
+    </div>
+  </form>
+</div>
+
+<div class="toolbar">
+  <form method="get" class="toolbar" style="margin:0;">
+    <select name="month" class="input" onchange="this.form.submit()">
+      {% for i in range(1, 13) %}
+      <option value="{{ i }}" {{ 'selected' if i == selected_month }}>{{ months[i-1] }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" class="input" onchange="this.form.submit()">
+      {% for y in years %}
+      <option value="{{ y }}" {{ 'selected' if y == selected_year }}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <div class="card" style="padding:10px 16px; display:flex; gap:10px; align-items:center;">
+    <span style="font-size:12px; color:var(--muted-foreground);">Total no período</span>
+    <span class="amount">{{ total|money }}</span>
+  </div>
+</div>
+
+<div class="table-wrap">
+  {% if not expenses %}
+  <div class="empty-state">
+    <h3>Nada por aqui ainda</h3>
+    <p>Nenhum gasto lançado em {{ months[selected_month - 1] }} de {{ selected_year }}.</p>
+  </div>
+  {% else %}
+  {% for e in expenses %}
+  <div class="row">
+    <div class="row-main">
+      <div class="row-title">{{ e.description }}</div>
+      <div class="row-sub">{{ e.employee.name if e.employee else 'Operação geral' }}</div>
+    </div>
+    <div class="row-side">
+      <span>{{ e.category }}</span>
+      <span>{{ e.date|data }}</span>
+      <span class="amount">{{ e.amount|money }}</span>
+      <form method="post" action="/gastos/{{ e.id }}/excluir" class="inline" onsubmit="return confirm('Excluir este gasto?');">
+        <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

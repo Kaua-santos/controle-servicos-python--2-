@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Visão geral · Controle de Serviços{% endblock %}
+{% block page_title %}Visão geral{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-eyebrow">Painel de comando</div>
+    <h2>Bom dia 👋</h2>
+    <p class="page-desc">Aqui está o pulso da sua operação hoje.</p>
+  </div>
+  <form method="get" class="toolbar">
+    <select name="month" class="input" onchange="this.form.submit()">
+      {% for i in range(1, 13) %}
+      <option value="{{ i }}" {{ 'selected' if i == summary.month }}>{{ months[i-1] }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" class="input" onchange="this.form.submit()">
+      {% for y in years %}
+      <option value="{{ y }}" {{ 'selected' if y == summary.year }}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="grid-4" style="margin-bottom:18px;">
+  <div class="card">
+    <div class="stat-icon">💰</div>
+    <div class="stat-label">Folha do mês</div>
+    <div class="stat-value">{{ summary.monthly_payroll|money }}</div>
+    <div class="stat-detail">{{ summary.active_employees }} pessoas ativas</div>
+  </div>
+  <div class="card">
+    <div class="stat-icon">🧾</div>
+    <div class="stat-label">Gastos operacionais</div>
+    <div class="stat-value">{{ summary.monthly_expenses|money }}</div>
+    <div class="stat-detail">despesas registradas</div>
+  </div>
+  <div class="card">
+    <div class="stat-icon">📈</div>
+    <div class="stat-label">Custo total</div>
+    <div class="stat-value">{{ summary.monthly_total|money }}</div>
+    <div class="stat-detail">folha + operação</div>
+  </div>
+  <div class="card">
+    <div class="stat-icon">👥</div>
+    <div class="stat-label">Equipe cadastrada</div>
+    <div class="stat-value">{{ '%02d'|format(summary.total_employees) }}</div>
+    <div class="stat-detail">{{ summary.active_employees }} ativos agora</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card" style="padding:0;">
+    <div class="panel-head" style="padding:18px 22px 14px;">
+      <div>
+        <div class="panel-title">Movimentações recentes</div>
+        <div class="panel-sub">Últimos gastos lançados na operação</div>
+      </div>
+      <a href="/gastos" style="font-size:11px; font-weight:700; color: var(--accent-foreground);">Ver todos</a>
+    </div>
+    {% if not recent_expenses %}
+    <div class="empty-state">
+      <h3>Nada por aqui ainda</h3>
+      <p>Os gastos registrados aparecerão nesta lista.</p>
+    </div>
+    {% else %}
+    {% for expense in recent_expenses %}
+    <div class="row">
+      <div class="row-main">
+        <div class="row-title">{{ expense.description }}</div>
+        <div class="row-sub">{{ expense.category }} · {{ expense.date|data }}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="amount">{{ expense.amount|money }}</div>
+        <div class="row-sub">{{ expense.employee.name if expense.employee else 'Operação geral' }}</div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="hero-card">
+    <span class="hero-tag">Resumo rápido</span>
+    <h3>O que precisa da sua atenção?</h3>
+    <p>Mantenha os cadastros e lançamentos em dia para fechar o mês sem surpresas.</p>
+    <div class="hero-grid">
+      <a href="/registros?tab=faltas">
+        <span>Faltas sem justificar</span>
+        <b>{{ summary.open_absences }} dias</b>
+      </a>
+      <a href="/registros?tab=adiantamentos">
+        <span>Adiantamentos em aberto</span>
+        <b>{{ summary.open_advances }}</b>
+      </a>
+    </div>
+    <a href="/funcionarios" style="display:inline-block; margin-top:16px; font-size:12px; font-weight:700; color: var(--accent);">Revisar equipe →</a>
+  </div>
+</div>
+{% endblock %}
