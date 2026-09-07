@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrar · Controle de Serviços</title>
+  <link rel="stylesheet" href="/static/style.css?v=responsive-2">
+</head>
+<body>
+  <main class="login-page">
+    <section class="card login-card">
+      <div class="brand">
+        <div class="brand-icon">CS</div>
+        <div>
+          <div class="brand-title">ofício</div>
+          <div class="brand-sub">controle diário</div>
+        </div>
+      </div>
+      <h1>Entrar no sistema</h1>
+      <p class="page-desc">Acesse o painel de controle da operação.</p>
+      {% if error %}
+      <div class="login-error" role="alert">Usuário ou senha inválidos.</div>
+      {% endif %}
+      <form method="post" action="/login">
+        <div class="field">
+          <label for="username">Usuário</label>
+          <select class="input" id="username" name="username" required autofocus>
+            <option value="">Selecione seu usuário</option>
+            <option value="patrick">Patrick</option>
+            <option value="fernando">Fernando</option>
+            <option value="manuela">Manuela</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="password">Senha</label>
+          <input class="input" id="password" type="password" name="password" required autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary" type="submit">Entrar</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

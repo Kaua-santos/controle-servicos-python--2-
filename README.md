@@ -28,6 +28,12 @@ uvicorn main:app --reload
 
 Acesse: http://127.0.0.1:8000
 
+### Acesso
+
+O sistema exige login. Configure `AUTH_PASSWORD` e `AUTH_SECRET` no ambiente
+de execução. Existem três usuários com o mesmo nível de acesso: `patrick`,
+`fernando` e `manuela`. Nunca publique o arquivo `.env` nem a senha no código.
+
 O banco de dados (`controle_servicos.db`, SQLite) é criado automaticamente
 na primeira execução, na mesma pasta do projeto.
 

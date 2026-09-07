@@ -5,9 +5,15 @@ controle de salários, gastos, faltas, adiantamentos e anotações.
 """
 
 import logging
+import base64
+import hashlib
+import hmac
+import os
 import re
+import time
 from datetime import date, datetime
 from html import escape
+from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -21,6 +27,22 @@ from sqlalchemy.orm import Session
 from database import Base, SessionLocal, engine
 from models import Absence, Advance, Employee, Expense, Note
 
+
+def load_local_env() -> None:
+    """Carrega o .env local sem substituir variáveis já configuradas."""
+    env_path = Path(__file__).with_name(".env")
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+load_local_env()
+
 # Cria as tabelas no banco (se ainda não existirem)
 Base.metadata.create_all(bind=engine)
 
@@ -28,6 +50,100 @@ app = FastAPI(title="Controle de Serviços")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 logger = logging.getLogger(__name__)
+AUTH_COOKIE = "controle_session"
+SESSION_TTL = 60 * 60 * 8
+AUTH_USERS = {"patrick": "Patrick", "fernando": "Fernando", "manuela": "Manuela"}
+AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "")
+AUTH_PASSWORD_DIGEST = ""
+
+
+def password_digest(password: str) -> str:
+    """Gera um hash lento e com salt para comparar a senha com segurança."""
+    salt = hashlib.sha256(AUTH_SECRET.encode()).digest()[:16]
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 210_000)
+    return base64.urlsafe_b64encode(digest).decode()
+
+
+AUTH_PASSWORD_DIGEST = password_digest(AUTH_PASSWORD) if AUTH_SECRET else ""
+
+
+def make_session(username: str) -> str:
+    payload = f"{username}:{int(time.time())}"
+    signature = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{payload}:{signature}".encode()).decode()
+
+
+def get_session_user(request: Request) -> str | None:
+    if not AUTH_SECRET or not AUTH_PASSWORD:
+        return None
+    try:
+        decoded = base64.urlsafe_b64decode(request.cookies[AUTH_COOKIE]).decode()
+        username, issued_at, signature = decoded.split(":", 2)
+        payload = f"{username}:{issued_at}"
+        expected = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if username not in AUTH_USERS or not hmac.compare_digest(signature, expected):
+            return None
+        if time.time() - int(issued_at) > SESSION_TTL:
+            return None
+        return username
+    except (KeyError, ValueError, TypeError, UnicodeDecodeError):
+        return None
+
+
+@app.get("/login")
+def login_page(request: Request, error: str = ""):
+    if get_session_user(request):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": error},
+    )
+
+
+@app.post("/login")
+def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    username = username.strip().lower()
+    password_matches = AUTH_PASSWORD_DIGEST and hmac.compare_digest(
+        password_digest(password), AUTH_PASSWORD_DIGEST
+    )
+    if username not in AUTH_USERS or not password_matches:
+        logger.warning("Tentativa de login recusada para usuário %s", username[:40])
+        return RedirectResponse("/login?error=1", status_code=303)
+
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie(
+        AUTH_COOKIE,
+        make_session(username),
+        max_age=SESSION_TTL,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
+@app.post("/logout")
+def logout():
+    response = RedirectResponse("/login", status_code=303)
+    response.delete_cookie(AUTH_COOKIE)
+    return response
+
+
+@app.middleware("http")
+async def require_authentication(request: Request, call_next):
+    public_paths = {"/login", "/static"}
+    is_public = request.url.path == "/login" or request.url.path.startswith("/static/")
+    if request.url.path not in public_paths and not is_public:
+        if not get_session_user(request):
+            from fastapi.responses import RedirectResponse as AuthRedirect
+            return AuthRedirect("/login", status_code=303)
+    return await call_next(request)
 
 
 def error_response(status_code: int, title: str, message: str) -> HTMLResponse:
