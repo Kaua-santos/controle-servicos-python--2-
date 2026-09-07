@@ -285,14 +285,16 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
         today = date.today()
         month = month or today.month
         year = year or today.year
+        username = get_session_user(request)
+        user_name = AUTH_USERS.get(username or "", "Usuário")
 
         hour = datetime.now().hour
         if 5 <= hour < 12:
-            saudacao = "Bom dia 👋"
+            saudacao = "Bom dia"
         elif 12 <= hour < 18:
-            saudacao = "Boa tarde 👋"
+            saudacao = "Boa tarde"
         else:
-            saudacao = "Boa noite 👋"
+            saudacao = "Boa noite"
 
         employees = db.query(Employee).all()
         active_employees = [e for e in employees if e.active]
@@ -385,6 +387,7 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
                 "years": [year - 1, year, year + 1],
                 "today": today,
                 "saudacao": saudacao,
+                "user_name": user_name,
             },
         )
     finally:

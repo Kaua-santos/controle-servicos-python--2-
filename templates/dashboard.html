@@ -6,7 +6,7 @@
 <div class="page-header">
   <div>
     <div class="page-eyebrow">Painel de comando</div>
-    <h2 id="saudacao">Bom dia 👋</h2>
+    <h2 id="saudacao" data-user-name="{{ user_name }}">{{ saudacao }}, {{ user_name }} 👋</h2>
     <p class="page-desc">Aqui está o pulso da sua operação hoje.</p>
   </div>
   <form method="get" class="toolbar">
@@ -127,17 +127,17 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const hora = new Date().getHours();
-    let saudacao = 'Boa noite 👋';
+      saudacao = 'Boa noite';
 
     if (hora >= 5 && hora < 12) {
-      saudacao = 'Bom dia 👋';
+      saudacao = 'Bom dia';
     } else if (hora >= 12 && hora < 18) {
-      saudacao = 'Boa tarde 👋';
+      saudacao = 'Boa tarde';
     }
 
     const elemento = document.getElementById('saudacao');
     if (elemento) {
-      elemento.innerText = saudacao;
+      elemento.innerText = saudacao + ', ' + elemento.dataset.userName + ' 👋';
     }
   });
 </script>
