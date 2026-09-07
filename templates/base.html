@@ -25,13 +25,6 @@
         <a href="/registros" class="{{ 'active' if page == 'registros' }}">📋 Registros</a>
       </nav>
 
-      <div class="sidebar-footer">
-        Sistema local · SQLite<br>
-        Controle de Serviços
-        <form method="post" action="/logout" class="logout-form">
-          <button type="submit" class="logout-link">Sair da conta</button>
-        </form>
-      </div>
     </aside>
 
     <div class="main">
@@ -40,6 +33,9 @@
           <div class="eyebrow">{{ today.strftime('%d/%m/%Y') if today }}</div>
           <h1>{% block page_title %}Visão geral{% endblock %}</h1>
         </div>
+        <form method="post" action="/logout" class="topbar-logout">
+          <button type="submit" class="logout-link">Sair da conta</button>
+        </form>
       </header>
       <div class="content">
         {% block content %}{% endblock %}
