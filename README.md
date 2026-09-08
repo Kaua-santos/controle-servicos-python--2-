@@ -34,6 +34,11 @@ O sistema exige login. Configure `AUTH_PASSWORD` e `AUTH_SECRET` no ambiente
 de execução. Existem três usuários com o mesmo nível de acesso: `patrick`,
 `fernando` e `manuela`. Nunca publique o arquivo `.env` nem a senha no código.
 
+Na hospedagem, cadastre essas duas variáveis em **Environment Variables** da
+plataforma. O arquivo `.env` local não é enviado para o servidor. Depois de
+salvar as variáveis, faça um novo deploy/restart. O login usa os usuários
+`patrick`, `fernando` ou `manuela` e a senha definida em `AUTH_PASSWORD`.
+
 O banco de dados (`controle_servicos.db`, SQLite) é criado automaticamente
 na primeira execução, na mesma pasta do projeto.
 

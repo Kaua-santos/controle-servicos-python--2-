@@ -109,6 +109,9 @@ def password_digest(password: str) -> str:
 
 AUTH_PASSWORD_DIGEST = password_digest(AUTH_PASSWORD) if AUTH_SECRET else ""
 
+if not AUTH_PASSWORD or not AUTH_SECRET:
+    logger.warning("AUTH_PASSWORD e AUTH_SECRET precisam estar configuradas no ambiente.")
+
 
 def make_session(username: str) -> str:
     payload = f"{username}:{int(time.time())}"
@@ -165,7 +168,7 @@ def login(
         max_age=SESSION_TTL,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
     )
     return response
 
