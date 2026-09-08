@@ -125,12 +125,17 @@
 </div>
 
 <a href="/fechamentos" class="history-callout">
-  <div class="history-icon">📊</div>
+  <div class="history-icon">↗</div>
   <div class="history-copy">
-    <strong>Histórico de custos mensais</strong>
-    <span>Consulte os fechamentos guardados e compare os meses da operação.</span>
+    <span class="history-kicker">Histórico financeiro</span>
+    <strong>Fechamentos mensais</strong>
+    <span>Consulte os custos realizados e acompanhe a evolução da operação.</span>
   </div>
-  <span class="history-link">Ver fechamentos →</span>
+  <div class="history-current">
+    <span>{{ months[summary.month - 1] }} {{ summary.year }}</span>
+    <strong>{{ summary.monthly_total|money }}</strong>
+  </div>
+  <span class="history-link">Abrir histórico <b>→</b></span>
 </a>
 
 <script>

@@ -12,13 +12,24 @@
 </div>
 
 <div class="history-hero">
-  <div class="history-hero-icon">📊</div>
+  <div class="history-hero-icon">↗</div>
   <div>
     <div class="history-hero-label">Histórico financeiro</div>
-    <h3>Veja como o custo da operação evoluiu</h3>
-    <p>Os lançamentos do mês atual continuam separados. Aqui ficam apenas os totais já registrados.</p>
+    <h3>Custos realizados, mês a mês</h3>
+    <p>Os lançamentos do mês atual continuam separados. Aqui ficam os totais salvos para consulta.</p>
   </div>
 </div>
+
+{% if selected_summary %}
+<div class="selected-summary">
+  <div>
+    <span class="selected-summary-label">Fechamento selecionado</span>
+    <strong>{{ months[selected_summary.month - 1] }} de {{ selected_summary.year }}</strong>
+    <span class="selected-summary-date">Atualizado em {{ selected_summary.updated_at|data }}</span>
+  </div>
+  <div class="selected-summary-total">{{ selected_summary.total_cost|money }}</div>
+</div>
+{% endif %}
 
 {% if not monthly_summaries %}
 <div class="table-wrap">
@@ -27,10 +38,11 @@
 {% else %}
 <div class="summary-grid">
   {% for item in monthly_summaries %}
-  <a href="/?month={{ item.month }}&year={{ item.year }}" class="summary-card">
-    <div class="summary-month">{{ months[item.month - 1] }} de {{ item.year }}</div>
+  <a href="/fechamentos?month={{ item.month }}&year={{ item.year }}" class="summary-card">
+    <div class="summary-topline"><span class="summary-dot"></span><span class="summary-month">{{ months[item.month - 1] }} de {{ item.year }}</span><span class="summary-arrow">↗</span></div>
+    <div class="summary-caption">Custo realizado</div>
     <div class="summary-total">{{ item.total_cost|money }}</div>
-    <div class="summary-date">Atualizado em {{ item.updated_at|data }}</div>
+    <div class="summary-footer"><span>Atualizado em {{ item.updated_at|data }}</span><span>Ver mês</span></div>
   </a>
   {% endfor %}
 </div>

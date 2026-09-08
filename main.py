@@ -752,7 +752,11 @@ def list_payments(
 
 
 @app.get("/fechamentos")
-def list_monthly_summaries(request: Request):
+def list_monthly_summaries(
+    request: Request,
+    month: int | None = None,
+    year: int | None = None,
+):
     db = get_session()
     try:
         summaries = (
@@ -760,6 +764,13 @@ def list_monthly_summaries(request: Request):
             .order_by(MonthlySummary.year.desc(), MonthlySummary.month.desc())
             .all()
         )
+        selected_summary = None
+        if month and year:
+            selected_summary = (
+                db.query(MonthlySummary)
+                .filter(MonthlySummary.month == month, MonthlySummary.year == year)
+                .first()
+            )
         return templates.TemplateResponse(
             request=request,
             name="fechamentos.html",
@@ -768,6 +779,7 @@ def list_monthly_summaries(request: Request):
                 "monthly_summaries": summaries,
                 "months": MONTHS,
                 "today": date.today(),
+                "selected_summary": selected_summary,
             },
         )
     finally:
