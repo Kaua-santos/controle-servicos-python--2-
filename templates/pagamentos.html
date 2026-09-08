@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Pagamentos · Controle de Serviços{% endblock %}
+{% block page_title %}Pagamentos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-eyebrow">Folha mensal</div>
+    <h2>Pagamentos</h2>
+    <p class="page-desc">Escolha quem será pago e acompanhe o histórico de cada mês.</p>
+  </div>
+  <div class="card" style="padding:10px 16px; display:flex; gap:10px; align-items:center;">
+    <span style="font-size:12px; color:var(--muted-foreground);">Total no mês</span>
+    <span class="amount">{{ payment_total|money }}</span>
+  </div>
+</div>
+
+<div class="toolbar">
+  <form method="get" class="toolbar" style="margin:0;">
+    <select name="month" class="input" onchange="this.form.submit()">
+      {% for i in range(1, 13) %}
+      <option value="{{ i }}" {{ 'selected' if i == selected_month }}>{{ months[i-1] }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" class="input" onchange="this.form.submit()">
+      {% for y in years %}
+      <option value="{{ y }}" {{ 'selected' if y == selected_year }}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if unpaid_employees %}
+<div class="form-card">
+  <h3>Pagar funcionário em {{ months[selected_month - 1] }} de {{ selected_year }}</h3>
+  <p class="form-help">Você pode pagar uma parte ou o salário inteiro. Se informar um valor maior, o excedente será lançado automaticamente como adiantamento.</p>
+  <form method="post" action="/pagamentos/novo">
+    <div class="form-grid">
+      <div class="field">
+        <label>Quem você quer pagar? *</label>
+          <select class="input" id="payment-employee" name="employee_id" required>
+          <option value="">Selecione</option>
+          {% for employee in unpaid_employees %}<option value="{{ employee.id }}" data-salary="{{ remaining_by_employee[employee.id] }}">{{ employee.name }} · restante {{ remaining_by_employee[employee.id]|money }}</option>{% endfor %}
+        </select>
+      </div>
+        <div class="field"><label>Valor *</label><input class="input" id="payment-amount" type="number" step="0.01" min="0" name="amount" required placeholder="0,00"></div>
+      <div class="field"><label>Data *</label><input class="input" type="date" name="date" value="{{ selected_year }}-{{ '%02d'|format(selected_month) }}-01" required></div>
+      <div class="field"><label>Observação</label><input class="input" name="description" placeholder="Ex.: salário do mês"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Registrar pagamento</button></div>
+  </form>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:20px;"><strong>Todos os funcionários ativos já foram pagos neste mês.</strong><div class="form-help" style="margin:6px 0 0;">No próximo mês, eles aparecerão novamente para pagamento.</div></div>
+{% endif %}
+
+<div class="table-wrap">
+  {% if not payments %}
+  <div class="empty-state"><h3>Nenhum pagamento neste mês</h3><p>Escolha um funcionário acima para registrar o primeiro pagamento.</p></div>
+  {% else %}
+  {% for payment in payments %}
+  <div class="row">
+    <div class="row-main">
+      <div class="row-title">{{ payment.employee.name }}</div>
+      <div class="row-sub">{{ payment.date|data }}{% if payment.description %} · {{ payment.description }}{% endif %}</div>
+    </div>
+    <div class="row-side">
+      <span class="amount">{{ payment.amount|money }}</span>
+      <form method="post" action="/pagamentos/{{ payment.id }}/excluir" class="inline" data-confirm="Excluir este pagamento? Essa ação não pode ser desfeita.">
+        <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+<script>
+  const employeeSelect = document.getElementById('payment-employee');
+  const amountInput = document.getElementById('payment-amount');
+  if (employeeSelect && amountInput) {
+    employeeSelect.addEventListener('change', () => {
+      const selected = employeeSelect.options[employeeSelect.selectedIndex];
+      amountInput.value = selected.dataset.salary || '';
+    });
+  }
+</script>
+{% endblock %}

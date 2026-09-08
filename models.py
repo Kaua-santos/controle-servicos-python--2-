@@ -39,6 +39,9 @@ class Employee(Base):
     advances = relationship(
         "Advance", back_populates="employee", cascade="all, delete-orphan"
     )
+    payments = relationship(
+        "Payment", back_populates="employee", cascade="all, delete-orphan"
+    )
 
 
 class Expense(Base):
@@ -56,6 +59,27 @@ class Expense(Base):
     )
 
     employee = relationship("Employee", back_populates="expenses")
+    payments = relationship(
+        "Payment", back_populates="expense", cascade="all, delete-orphan"
+    )
+
+
+class Payment(Base):
+    """Pagamento mensal feito a um funcionário, separado de adiantamentos."""
+
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expense_id = Column(
+        Integer, ForeignKey("expenses.id", ondelete="CASCADE"), nullable=True
+    )
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=True)
+    amount = Column(Float, nullable=False, default=0)
+    date = Column(Date, nullable=False)
+    description = Column(String, nullable=True)
+
+    expense = relationship("Expense", back_populates="payments")
+    employee = relationship("Employee", back_populates="payments")
 
 
 class Absence(Base):
@@ -102,3 +126,15 @@ class Note(Base):
     content = Column(Text, nullable=False)
     pinned = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MonthlySummary(Base):
+    """Fechamento persistido do custo total de um mês."""
+
+    __tablename__ = "monthly_summaries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    month = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)
+    total_cost = Column(Float, nullable=False, default=0)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)

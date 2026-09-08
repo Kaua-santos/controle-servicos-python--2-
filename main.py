@@ -25,7 +25,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from database import Base, SessionLocal, engine
-from models import Absence, Advance, Employee, Expense, Note
+from models import Absence, Advance, Employee, Expense, MonthlySummary, Note, Payment
 
 
 def load_local_env() -> None:
@@ -45,6 +45,48 @@ load_local_env()
 
 # Cria as tabelas no banco (se ainda não existirem)
 Base.metadata.create_all(bind=engine)
+
+
+def migrate_payment_table() -> None:
+    """Atualiza a tabela antiga de pagamentos para o formato mensal independente."""
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as connection:
+        columns = connection.exec_driver_sql("PRAGMA table_info(payments)").fetchall()
+        if not columns:
+            return
+        column_names = {column[1] for column in columns}
+        expense_column = next(column for column in columns if column[1] == "expense_id")
+        employee_column = next(column for column in columns if column[1] == "employee_id")
+        if expense_column[3] == 0 and employee_column[3] == 0 and "method" not in column_names:
+            return
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE payments_new (
+                id INTEGER NOT NULL PRIMARY KEY,
+                expense_id INTEGER,
+                employee_id INTEGER,
+                amount FLOAT NOT NULL DEFAULT 0,
+                date DATE NOT NULL,
+                description VARCHAR,
+                FOREIGN KEY(expense_id) REFERENCES expenses (id) ON DELETE CASCADE,
+                FOREIGN KEY(employee_id) REFERENCES employees (id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            INSERT INTO payments_new (id, expense_id, employee_id, amount, date, description)
+            SELECT id, expense_id, employee_id, amount, date, description FROM payments
+            """
+        )
+        connection.exec_driver_sql("DROP TABLE payments")
+        connection.exec_driver_sql("ALTER TABLE payments_new RENAME TO payments")
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
+
+migrate_payment_table()
 
 app = FastAPI(title="Controle de Serviços")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -274,6 +316,22 @@ def get_session() -> Session:
     return SessionLocal()
 
 
+def save_monthly_summary(db: Session, month: int, year: int, total_cost: float) -> MonthlySummary:
+    """Atualiza o fechamento do mês para manter o total disponível no histórico."""
+    summary = (
+        db.query(MonthlySummary)
+        .filter(MonthlySummary.month == month, MonthlySummary.year == year)
+        .first()
+    )
+    if summary is None:
+        summary = MonthlySummary(month=month, year=year)
+        db.add(summary)
+    summary.total_cost = total_cost
+    summary.updated_at = datetime.utcnow()
+    db.commit()
+    return summary
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -314,8 +372,24 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
                 settled_by_employee.get(advance.employee_id, 0) + advance.amount
             )
 
+        month_payments = (
+            db.query(Payment)
+            .filter(extract("month", Payment.date) == month, extract("year", Payment.date) == year)
+            .all()
+        )
+        paid_by_employee = {}
+        for payment in month_payments:
+            paid_by_employee[payment.employee_id] = (
+                paid_by_employee.get(payment.employee_id, 0) + payment.amount
+            )
+
         monthly_payroll = sum(
-            max(0, e.salary - settled_by_employee.get(e.id, 0))
+            max(
+                0,
+                e.salary
+                - settled_by_employee.get(e.id, 0)
+                - paid_by_employee.get(e.id, 0),
+            )
             for e in active_employees
         )
 
@@ -332,6 +406,14 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
             .all()
         )
         monthly_advances_total = sum(a.amount for a in month_advances)
+        monthly_payments_total = sum(payment.amount for payment in month_payments)
+        monthly_total = monthly_expenses_total + monthly_payments_total
+        save_monthly_summary(db, month, year, monthly_total)
+        monthly_summaries = (
+            db.query(MonthlySummary)
+            .order_by(MonthlySummary.year.desc(), MonthlySummary.month.desc())
+            .all()
+        )
 
         month_absences = (
             db.query(Absence)
@@ -359,6 +441,30 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
         open_advances_count = db.query(Advance).filter(Advance.status == "open").count()
 
         recent_expenses = db.query(Expense).order_by(Expense.date.desc()).limit(5).all()
+        recent_payments = db.query(Payment).order_by(Payment.date.desc()).limit(5).all()
+        recent_movements = [
+            {
+                "kind": "expense",
+                "description": expense.description,
+                "detail": f"{expense.category} · {expense.date.strftime('%d/%m/%Y')}",
+                "amount": expense.amount,
+                "person": expense.employee.name if expense.employee else "Operação geral",
+                "date": expense.date,
+            }
+            for expense in recent_expenses
+        ] + [
+            {
+                "kind": "payment",
+                "description": f"Pagamento · {payment.employee.name if payment.employee else 'Funcionário não informado'}",
+                "detail": f"Folha · {payment.date.strftime('%d/%m/%Y')}",
+                "amount": payment.amount,
+                "person": payment.description or "Pagamento realizado",
+                "date": payment.date,
+            }
+            for payment in recent_payments
+        ]
+        recent_movements.sort(key=lambda movement: movement["date"], reverse=True)
+        recent_movements = recent_movements[:5]
 
         summary = {
             "month": month,
@@ -366,9 +472,10 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
             "total_employees": len(employees),
             "active_employees": len(active_employees),
             "monthly_payroll": monthly_payroll,
+            "monthly_payments": monthly_payments_total,
             "settled_advances": sum(a.amount for a in settled_advances),
             "monthly_expenses": monthly_expenses_total,
-            "monthly_total": monthly_payroll + monthly_expenses_total,
+            "monthly_total": monthly_total,
             "monthly_advances": monthly_advances_total,
             "open_absences": open_absence_days,
             "open_advances": open_advances_count,
@@ -381,13 +488,14 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
             context={
                 "page": "dashboard",
                 "summary": summary,
-                "recent_expenses": recent_expenses,
+                "recent_movements": recent_movements,
                 "absence_employees": absence_employees,
                 "months": MONTHS,
                 "years": [year - 1, year, year + 1],
                 "today": today,
                 "saudacao": saudacao,
                 "user_name": user_name,
+                "monthly_summaries": monthly_summaries,
             },
         )
     finally:
@@ -574,7 +682,7 @@ def create_expense(
         db.commit()
     finally:
         db.close()
-    return RedirectResponse("/gastos", status_code=303)
+    return RedirectResponse(f"/gastos?month={parse_date(date_).month}&year={parse_date(date_).year}", status_code=303)
 
 
 @app.post("/gastos/{expense_id}/excluir")
@@ -590,21 +698,114 @@ def delete_expense(expense_id: int):
     return RedirectResponse("/gastos", status_code=303)
 
 
+@app.get("/pagamentos")
+def list_payments(
+    request: Request,
+    month: int | None = None,
+    year: int | None = None,
+):
+    db = get_session()
+    try:
+        today = date.today()
+        month = month or today.month
+        year = year or today.year
+        employees = db.query(Employee).filter(Employee.active.is_(True)).order_by(Employee.name).all()
+        payments = (
+            db.query(Payment)
+            .filter(extract("month", Payment.date) == month, extract("year", Payment.date) == year)
+            .order_by(Payment.date.desc())
+            .all()
+        )
+        paid_by_employee = {}
+        for payment in payments:
+            paid_by_employee[payment.employee_id] = paid_by_employee.get(payment.employee_id, 0) + payment.amount
+        unpaid_employees = [
+            employee
+            for employee in employees
+            if paid_by_employee.get(employee.id, 0) < employee.salary
+        ]
+        remaining_by_employee = {
+            employee.id: employee.salary - paid_by_employee.get(employee.id, 0)
+            for employee in unpaid_employees
+        }
+        return templates.TemplateResponse(
+            request=request,
+            name="pagamentos.html",
+            context={
+                "page": "pagamentos",
+                "payments": payments,
+                "unpaid_employees": unpaid_employees,
+                "remaining_by_employee": remaining_by_employee,
+                "payment_total": sum(payment.amount for payment in payments),
+                "months": MONTHS,
+                "years": [year - 1, year, year + 1],
+                "selected_month": month,
+                "selected_year": year,
+                "today": today,
+            },
+        )
+    finally:
+        db.close()
+
+
+@app.get("/fechamentos")
+def list_monthly_summaries(request: Request):
+    db = get_session()
+    try:
+        summaries = (
+            db.query(MonthlySummary)
+            .order_by(MonthlySummary.year.desc(), MonthlySummary.month.desc())
+            .all()
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="fechamentos.html",
+            context={
+                "page": "fechamentos",
+                "monthly_summaries": summaries,
+                "months": MONTHS,
+                "today": date.today(),
+            },
+        )
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
-# Registros (faltas, anotações, adiantamentos)
+# Registros (faltas, anotações, adiantamentos, pagamentos)
 # ---------------------------------------------------------------------------
 
 @app.get("/registros")
-def registros(request: Request, tab: str = "faltas"):
+def registros(
+    request: Request,
+    tab: str = "faltas",
+    month: int | None = None,
+    year: int | None = None,
+):
     db = get_session()
     try:
+        today = date.today()
+        month = month or today.month
+        year = year or today.year
         employees = db.query(Employee).order_by(Employee.name).all()
+        active_employees = [employee for employee in employees if employee.active]
         absences = db.query(Absence).order_by(Absence.date.desc()).all()
         notes = db.query(Note).order_by(Note.pinned.desc(), Note.created_at.desc()).all()
         advances = db.query(Advance).order_by(Advance.date.desc()).all()
+        payments = (
+            db.query(Payment)
+            .filter(extract("month", Payment.date) == month, extract("year", Payment.date) == year)
+            .order_by(Payment.date.desc())
+            .all()
+        )
 
         total_absence_days = sum(a.days for a in absences)
         open_advance_total = sum(a.amount for a in advances if a.status == "open")
+        payment_total = sum(payment.amount for payment in payments)
+        paid_employee_ids = {payment.employee_id for payment in payments}
+        unpaid_employees = [
+            employee for employee in active_employees if employee.id not in paid_employee_ids
+        ]
 
         return templates.TemplateResponse(
             request=request,
@@ -613,12 +814,19 @@ def registros(request: Request, tab: str = "faltas"):
                 "page": "registros",
                 "tab": tab,
                 "employees": employees,
+                "unpaid_employees": unpaid_employees,
                 "absences": absences,
                 "notes": notes,
                 "advances": advances,
                 "total_absence_days": total_absence_days,
                 "open_advance_total": open_advance_total,
-                "today": date.today(),
+                "payments": payments,
+                "payment_total": payment_total,
+                "months": MONTHS,
+                "years": [year - 1, year, year + 1],
+                "selected_month": month,
+                "selected_year": year,
+                "today": today,
             },
         )
     finally:
@@ -750,3 +958,73 @@ def delete_advance(advance_id: int):
     finally:
         db.close()
     return RedirectResponse("/registros?tab=adiantamentos", status_code=303)
+
+
+@app.post("/pagamentos/novo")
+def create_payment(
+    employee_id: int = Form(...),
+    amount: float = Form(0),
+    date_: str = Form(..., alias="date"),
+    description: str = Form(""),
+):
+    payment_date = parse_date(date_)
+    db = get_session()
+    try:
+        employee = db.get(Employee, employee_id)
+        if not employee:
+            raise HTTPException(status_code=404, detail="Funcionário não encontrado.")
+        month_payments = (
+            db.query(Payment)
+            .filter(
+                Payment.employee_id == employee_id,
+                extract("month", Payment.date) == payment_date.month,
+                extract("year", Payment.date) == payment_date.year,
+            )
+            .all()
+        )
+        paid_amount = sum(payment.amount for payment in month_payments)
+        remaining_salary = max(0, employee.salary - paid_amount)
+        if remaining_salary == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Este funcionário já recebeu o salário completo neste mês.",
+            )
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Informe um valor de pagamento maior que zero.")
+        payment_amount = min(amount, remaining_salary)
+        advance_amount = max(0, amount - remaining_salary)
+        db.add(
+            Payment(
+                employee_id=employee_id,
+                amount=payment_amount,
+                date=payment_date,
+                description=description.strip() or None,
+            )
+        )
+        if advance_amount > 0:
+            db.add(
+                Advance(
+                    employee_id=employee_id,
+                    amount=advance_amount,
+                    date=payment_date,
+                    description="Excedente do pagamento mensal",
+                    status="open",
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse(f"/pagamentos?month={payment_date.month}&year={payment_date.year}", status_code=303)
+
+
+@app.post("/pagamentos/{payment_id}/excluir")
+def delete_payment(payment_id: int):
+    db = get_session()
+    try:
+        payment = db.get(Payment, payment_id)
+        if payment:
+            db.delete(payment)
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/pagamentos", status_code=303)

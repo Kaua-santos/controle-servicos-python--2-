@@ -1,7 +1,7 @@
 # Controle de Serviços (versão Python)
 
 Sistema de controle de serviços com cadastro de funcionários, controle de
-salários, gastos, faltas, adiantamentos e anotações.
+salários, gastos, pagamentos, faltas, adiantamentos e anotações.
 
 Reescrito em **Python** (FastAPI + SQLAlchemy + Jinja2 + SQLite) a partir da
 versão original em Node.js/TypeScript.
@@ -41,7 +41,7 @@ na primeira execução, na mesma pasta do projeto.
 
 ```
 main.py          # rotas da aplicação (dashboard, funcionários, gastos, registros)
-models.py        # tabelas SQLAlchemy (Employee, Expense, Absence, Advance, Note)
+models.py        # tabelas SQLAlchemy (Employee, Expense, Payment, MonthlySummary, ...)
 database.py      # configuração do banco (SQLite)
 templates/       # páginas HTML (Jinja2)
 static/style.css # estilo visual
@@ -59,3 +59,7 @@ requirements.txt # dependências Python
   - *Faltas*: data, dias, motivo, se foi justificada.
   - *Anotações*: título, conteúdo, fixar no topo.
   - *Adiantamentos*: valor, data, situação (em aberto/descontado).
+  - *Pagamentos* (tela própria): escolha do funcionário, valor, data e observação. Cada pessoa
+    só pode ser paga uma vez no mês selecionado e volta a aparecer no mês seguinte.
+- **Fechamento mensal**: o custo total de cada mês fica salvo no histórico do
+  dashboard, enquanto os lançamentos do novo mês começam separados.

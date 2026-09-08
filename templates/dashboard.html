@@ -26,9 +26,9 @@
 <div class="grid-4" style="margin-bottom:18px;">
   <div class="card">
     <div class="stat-icon">💰</div>
-    <div class="stat-label">Salário final do mês</div>
+    <div class="stat-label">Folha final do mês</div>
     <div class="stat-value">{{ summary.monthly_payroll|money }}</div>
-    <div class="stat-detail">{{ summary.active_employees }} pessoas ativas{% if summary.settled_advances %} · adiantamentos descontados{% endif %}</div>
+    <div class="stat-detail">{{ summary.active_employees }} pessoas ativas · restante a pagar</div>
   </div>
   <div class="card">
     <div class="stat-icon">🧾</div>
@@ -40,7 +40,7 @@
     <div class="stat-icon">📈</div>
     <div class="stat-label">Custo total</div>
     <div class="stat-value">{{ summary.monthly_total|money }}</div>
-    <div class="stat-detail">folha + operação</div>
+    <div class="stat-detail">gastos e pagamentos realizados</div>
   </div>
   <div class="card">
     <div class="stat-icon">👥</div>
@@ -55,25 +55,25 @@
     <div class="panel-head" style="padding:18px 22px 14px;">
       <div>
         <div class="panel-title">Movimentações recentes</div>
-        <div class="panel-sub">Últimos gastos lançados na operação</div>
+        <div class="panel-sub">Gastos e pagamentos feitos recentemente</div>
       </div>
-      <a href="/gastos" style="font-size:11px; font-weight:700; color: var(--accent-foreground);">Ver todos</a>
+      <a href="/pagamentos" style="font-size:11px; font-weight:700; color: var(--accent-foreground);">Ver pagamentos</a>
     </div>
-    {% if not recent_expenses %}
+    {% if not recent_movements %}
     <div class="empty-state">
       <h3>Nada por aqui ainda</h3>
-      <p>Os gastos registrados aparecerão nesta lista.</p>
+      <p>Os gastos e pagamentos registrados aparecerão nesta lista.</p>
     </div>
     {% else %}
-    {% for expense in recent_expenses %}
+    {% for movement in recent_movements %}
     <div class="row">
       <div class="row-main">
-        <div class="row-title">{{ expense.description }}</div>
-        <div class="row-sub">{{ expense.category }} · {{ expense.date|data }}</div>
+        <div class="row-title">{{ movement.description }}</div>
+        <div class="row-sub">{{ movement.detail }}</div>
       </div>
       <div style="text-align:right;">
-        <div class="amount">{{ expense.amount|money }}</div>
-        <div class="row-sub">{{ expense.employee.name if expense.employee else 'Operação geral' }}</div>
+        <div class="amount {{ 'movement-payment' if movement.kind == 'payment' }}">{{ movement.amount|money }}</div>
+        <div class="row-sub">{{ movement.person }}</div>
       </div>
     </div>
     {% endfor %}
@@ -123,6 +123,15 @@
   {% endfor %}
   {% endif %}
 </div>
+
+<a href="/fechamentos" class="history-callout">
+  <div class="history-icon">📊</div>
+  <div class="history-copy">
+    <strong>Histórico de custos mensais</strong>
+    <span>Consulte os fechamentos guardados e compare os meses da operação.</span>
+  </div>
+  <span class="history-link">Ver fechamentos →</span>
+</a>
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
