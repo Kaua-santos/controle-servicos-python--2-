@@ -68,7 +68,11 @@
       <div class="row-side">
         <span>{{ a.date|data }}</span>
         <span class="amount">{{ a.days }} {{ 'dia' if a.days == 1 else 'dias' }}</span>
-        <span class="badge {{ 'badge-green' if a.justified else 'badge-red' }}">{{ 'Justificada' if a.justified else 'Sem justificar' }}</span>
+        <form method="post" action="/registros/faltas/{{ a.id }}/toggle" class="inline">
+          <button type="submit" class="badge {{ 'badge-green' if a.justified else 'badge-red' }}" style="border:none; cursor:pointer;">
+            {{ 'Justificada' if a.justified else 'Sem justificar' }}
+          </button>
+        </form>
         <form method="post" action="/registros/faltas/{{ a.id }}/excluir" class="inline" data-confirm="Excluir este registro de falta? Essa ação não pode ser desfeita.">
           <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
         </form>

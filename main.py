@@ -872,6 +872,19 @@ def create_absence(
     return RedirectResponse("/registros?tab=faltas", status_code=303)
 
 
+@app.post("/registros/faltas/{absence_id}/toggle")
+def toggle_absence(absence_id: int):
+    db = get_session()
+    try:
+        absence = db.get(Absence, absence_id)
+        if absence:
+            absence.justified = not absence.justified
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/registros?tab=faltas", status_code=303)
+
+
 @app.post("/registros/faltas/{absence_id}/excluir")
 def delete_absence(absence_id: int):
     db = get_session()

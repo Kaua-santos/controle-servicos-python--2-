@@ -66,14 +66,20 @@
     </div>
     {% else %}
     {% for movement in recent_movements %}
-    <div class="row">
-      <div class="row-main">
-        <div class="row-title">{{ movement.description }}</div>
-        <div class="row-sub">{{ movement.detail }}</div>
+    <div class="movement-row">
+      <div class="movement-icon {{ 'movement-icon-payment' if movement.kind == 'payment' else 'movement-icon-expense' }}">
+        {{ '+' if movement.kind == 'payment' else '−' }}
       </div>
-      <div style="text-align:right;">
-        <div class="amount {{ 'movement-payment' if movement.kind == 'payment' }}">{{ movement.amount|money }}</div>
-        <div class="row-sub">{{ movement.person }}</div>
+      <div class="movement-main">
+        <div class="movement-title">{{ movement.description }}</div>
+        <div class="movement-meta">
+          <span>{{ movement.detail }}</span>
+          <span class="movement-person">{{ movement.person }}</span>
+        </div>
+      </div>
+      <div class="movement-value">
+        <span class="movement-kind {{ 'movement-kind-payment' if movement.kind == 'payment' else 'movement-kind-expense' }}">{{ 'Pagamento' if movement.kind == 'payment' else 'Gasto' }}</span>
+        <strong class="{{ 'movement-payment' if movement.kind == 'payment' else 'movement-expense' }}">{{ movement.amount|money }}</strong>
       </div>
     </div>
     {% endfor %}
