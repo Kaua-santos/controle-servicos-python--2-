@@ -13,15 +13,15 @@
 
 <div class="tabs">
   <a href="/registros?tab=faltas" class="tab-card {{ 'active' if tab == 'faltas' }}">
-    <div class="t-label">📅 Faltas</div>
+    <div class="t-label">Faltas</div>
     <div class="t-detail">{{ total_absence_days }} dias registrados</div>
   </a>
   <a href="/registros?tab=anotacoes" class="tab-card {{ 'active' if tab == 'anotacoes' }}">
-    <div class="t-label">📝 Anotações</div>
+    <div class="t-label">Anotações</div>
     <div class="t-detail">{{ notes|length }} salvas</div>
   </a>
   <a href="/registros?tab=adiantamentos" class="tab-card {{ 'active' if tab == 'adiantamentos' }}">
-    <div class="t-label">💵 Adiantamentos</div>
+    <div class="t-label">Adiantamentos</div>
     <div class="t-detail">{{ open_advance_total|money }} em aberto</div>
   </a>
 </div>
@@ -110,7 +110,7 @@
     <div class="note-card {{ 'pinned' if n.pinned }}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div class="note-title">{{ n.title }}</div>
-        {% if n.pinned %}<span>📌</span>{% endif %}
+        {% if n.pinned %}<span>Fixada</span>{% endif %}
       </div>
       <div class="note-content">{{ n.content }}</div>
       <div class="note-foot">
