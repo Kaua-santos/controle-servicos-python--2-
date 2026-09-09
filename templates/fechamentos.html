@@ -9,6 +9,9 @@
     <h2>Custos mensais</h2>
     <p class="page-desc">Cada mês fechado guarda somente os gastos e pagamentos realmente realizados.</p>
   </div>
+  {% if selected_summary %}
+  <button type="button" class="btn btn-primary print-action" onclick="window.print()">🖨 Imprimir / salvar PDF</button>
+  {% endif %}
 </div>
 
 <div class="history-hero">
@@ -29,6 +32,22 @@
   </div>
   <div class="selected-summary-total">{{ selected_summary.total_cost|money }}</div>
 </div>
+<section class="print-sheet">
+  <div class="print-sheet-heading">
+    <div>
+      <span class="print-sheet-kicker">Controle de Serviços</span>
+      <h3>Folha de fechamento mensal</h3>
+    </div>
+    <span class="print-sheet-period">{{ months[selected_summary.month - 1] }} de {{ selected_summary.year }}</span>
+  </div>
+  <div class="print-sheet-total-label">Custo total realizado</div>
+  <div class="print-sheet-total">{{ selected_summary.total_cost|money }}</div>
+  <div class="print-sheet-meta">Atualizado em {{ selected_summary.updated_at|data }}</div>
+  <div class="print-sheet-signatures">
+    <div><span></span><small>Responsável pelo fechamento</small></div>
+    <div><span></span><small>Conferência</small></div>
+  </div>
+</section>
 {% endif %}
 
 {% if not monthly_summaries %}
