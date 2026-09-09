@@ -96,7 +96,7 @@ AUTH_COOKIE = "controle_session"
 SESSION_TTL = 60 * 60 * 8
 AUTH_USERS = {"patrick": "Patrick", "fernando": "Fernando", "manuela": "Manuela"}
 AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
-AUTH_SECRET = os.environ.get("AUTH_SECRET", "")
+AUTH_SECRET = os.environ.get("AUTH_SECRET", "").strip()
 AUTH_PASSWORD_DIGEST = ""
 
 
@@ -162,13 +162,16 @@ def login(
         return RedirectResponse("/login?error=1", status_code=303)
 
     response = RedirectResponse("/", status_code=303)
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    is_https = forwarded_proto.split(",", 1)[0].strip().lower() == "https"
     response.set_cookie(
         AUTH_COOKIE,
         make_session(username),
         max_age=SESSION_TTL,
         httponly=True,
         samesite="lax",
-        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+        secure=is_https,
+        path="/",
     )
     return response
 
@@ -176,7 +179,7 @@ def login(
 @app.post("/logout")
 def logout():
     response = RedirectResponse("/login", status_code=303)
-    response.delete_cookie(AUTH_COOKIE)
+    response.delete_cookie(AUTH_COOKIE, path="/")
     return response
 
 
