@@ -95,8 +95,17 @@ logger = logging.getLogger(__name__)
 AUTH_COOKIE = "controle_session"
 SESSION_TTL = 60 * 60 * 8
 AUTH_USERS = {"patrick": "Patrick", "fernando": "Fernando", "manuela": "Manuela"}
-AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
-AUTH_SECRET = os.environ.get("AUTH_SECRET", "").strip()
+
+
+def read_auth_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1].strip()
+    return value
+
+
+AUTH_PASSWORD = read_auth_env("AUTH_PASSWORD")
+AUTH_SECRET = read_auth_env("AUTH_SECRET")
 AUTH_PASSWORD_DIGEST = ""
 
 
@@ -111,6 +120,8 @@ AUTH_PASSWORD_DIGEST = password_digest(AUTH_PASSWORD) if AUTH_SECRET else ""
 
 if not AUTH_PASSWORD or not AUTH_SECRET:
     logger.warning("AUTH_PASSWORD e AUTH_SECRET precisam estar configuradas no ambiente.")
+else:
+    logger.info("Autenticação configurada: senha com %d caracteres e segredo presente.", len(AUTH_PASSWORD))
 
 
 def make_session(username: str) -> str:
@@ -140,10 +151,15 @@ def get_session_user(request: Request) -> str | None:
 def login_page(request: Request, error: str = ""):
     if get_session_user(request):
         return RedirectResponse("/", status_code=303)
+    login_error = ""
+    if error == "config":
+        login_error = "O login ainda não foi configurado no servidor. Verifique AUTH_PASSWORD e AUTH_SECRET no Render."
+    elif error:
+        login_error = "Usuário ou senha inválidos."
     return templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"error": error},
+        context={"error": login_error},
     )
 
 
@@ -154,11 +170,18 @@ def login(
     password: str = Form(...),
 ):
     username = username.strip().lower()
+    if not AUTH_PASSWORD or not AUTH_SECRET:
+        logger.error("Login indisponível: AUTH_PASSWORD ou AUTH_SECRET não configurada.")
+        return RedirectResponse("/login?error=config", status_code=303)
     password_matches = AUTH_PASSWORD_DIGEST and hmac.compare_digest(
         password_digest(password), AUTH_PASSWORD_DIGEST
     )
     if username not in AUTH_USERS or not password_matches:
-        logger.warning("Tentativa de login recusada para usuário %s", username[:40])
+        logger.warning(
+            "Tentativa de login recusada: usuário válido=%s, senha válida=%s",
+            username in AUTH_USERS,
+            bool(password_matches),
+        )
         return RedirectResponse("/login?error=1", status_code=303)
 
     response = RedirectResponse("/", status_code=303)
