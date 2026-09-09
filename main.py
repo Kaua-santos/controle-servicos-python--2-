@@ -153,9 +153,9 @@ def login_page(request: Request, error: str = ""):
         return RedirectResponse("/", status_code=303)
     login_error = ""
     if error == "config":
-        login_error = "O login ainda não foi configurado no servidor. Verifique AUTH_PASSWORD e AUTH_SECRET no Render."
+        login_error = "O acesso está temporariamente indisponível. Tente novamente mais tarde."
     elif error:
-        login_error = "Usuário ou senha inválidos."
+        login_error = "Não foi possível entrar. Confira seus dados e tente novamente."
     return templates.TemplateResponse(
         request=request,
         name="login.html",
