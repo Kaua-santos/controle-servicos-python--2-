@@ -170,6 +170,7 @@ def login(
     password: str = Form(...),
 ):
     username = username.strip().lower()
+    password = password.strip()
     if not AUTH_PASSWORD or not AUTH_SECRET:
         logger.error("Login indisponível: AUTH_PASSWORD ou AUTH_SECRET não configurada.")
         return RedirectResponse("/login?error=config", status_code=303)
