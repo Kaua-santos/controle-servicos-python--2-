@@ -12,7 +12,7 @@ import os
 import re
 import time
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from html import escape
 from pathlib import Path
 
@@ -334,6 +334,40 @@ MONTHS = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ]
+
+
+def brazilian_holidays(year: int) -> dict[date, str]:
+    """Feriados nacionais brasileiros, incluindo a Sexta-feira Santa móvel."""
+    golden_number = year % 19
+    century = year // 100
+    year_of_century = year % 100
+    leap_century = century // 4
+    century_remainder = century % 4
+    century_correction = (century + 8) // 25
+    epact_correction = (century - century_correction + 1) // 3
+    epact = (19 * golden_number + century - leap_century - epact_correction + 15) % 30
+    leap_year_of_century = year_of_century // 4
+    year_remainder = year_of_century % 4
+    weekday_correction = (
+        32 + 2 * century_remainder + 2 * leap_year_of_century - epact - year_remainder
+    ) % 7
+    easter_correction = (golden_number + 11 * epact + 22 * weekday_correction) // 451
+    easter_month = (epact + weekday_correction - 7 * easter_correction + 114) // 31
+    easter_day = (epact + weekday_correction - 7 * easter_correction + 114) % 31 + 1
+    good_friday = date(year, easter_month, easter_day) - timedelta(days=2)
+
+    return {
+        date(year, 1, 1): "Confraternização Universal",
+        date(year, 4, 21): "Tiradentes",
+        date(year, 5, 1): "Dia do Trabalho",
+        good_friday: "Sexta-feira Santa",
+        date(year, 9, 7): "Independência do Brasil",
+        date(year, 10, 12): "Nossa Senhora Aparecida",
+        date(year, 11, 2): "Finados",
+        date(year, 11, 15): "Proclamação da República",
+        date(year, 11, 20): "Consciência Negra",
+        date(year, 12, 25): "Natal",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -850,6 +884,13 @@ def registros(
         calendar_weeks = []
         weekday_workdays = 0
         additional_workdays = 0
+        calendar_day_count = 0
+        monthly_business_days = 0
+        worked_day_rows = []
+        previous_month = month - 1 if month > 1 else 12
+        previous_year = year if month > 1 else year - 1
+        next_month_number = month % 12 + 1
+        next_year = year + (month == 12)
         if tab == "calendario":
             try:
                 month_start = date(year, month, 1)
@@ -858,7 +899,14 @@ def registros(
                 year = today.year
                 month_start = date(year, month, 1)
             next_month = date(year + (month == 12), month % 12 + 1, 1)
+            previous_month_date = month_start - timedelta(days=1)
+            previous_month = previous_month_date.month
+            previous_year = previous_month_date.year
+            next_month_number = next_month.month
+            next_year = next_month.year
             calendar_days = monthrange(year, month)[1]
+            calendar_day_count = calendar_days
+            holiday_names = brazilian_holidays(year)
             calendar_dates = []
             day_types = {
                 calendar_day.date: calendar_day.is_working_day
@@ -887,18 +935,48 @@ def registros(
                 work_date = date(year, month, day_number)
                 is_worked = work_date in worked_dates
                 is_weekend = work_date.weekday() >= 5
-                is_working_day = day_types.get(work_date, not is_weekend)
+                holiday_name = holiday_names.get(work_date)
+                is_working_day = day_types.get(
+                    work_date, not is_weekend and holiday_name is None
+                )
+                if is_working_day:
+                    monthly_business_days += 1
                 if is_worked and not is_working_day:
                     additional_workdays += 1
                 elif is_worked:
                     weekday_workdays += 1
+                if is_worked:
+                    weekday_name = [
+                        "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira",
+                        "Sexta-feira", "Sábado", "Domingo",
+                    ][work_date.weekday()]
+                    worked_day_rows.append(
+                        {
+                            "date": work_date,
+                            "weekday": weekday_name,
+                            "classification": (
+                                f"Adicional · {holiday_name}"
+                                if holiday_name and not is_working_day
+                                else "Adicional · fim de semana"
+                                if not is_working_day
+                                else "Dia útil"
+                            ),
+                        }
+                    )
                 calendar_dates.append(
                     {
                         "date": work_date,
                         "worked": is_worked,
                         "weekend": is_weekend,
                         "working_day": is_working_day,
-                        "holiday": not is_working_day and not is_weekend,
+                        "holiday": bool(holiday_name)
+                        or (not is_working_day and not is_weekend),
+                        "holiday_name": holiday_name
+                        or (
+                            "Feriado personalizado"
+                            if not is_working_day and not is_weekend
+                            else None
+                        ),
                         "future": work_date > today,
                     }
                 )
@@ -935,8 +1013,11 @@ def registros(
                 "active_employees": active_employees,
                 "calendar_employee": calendar_employee,
                 "calendar_weeks": calendar_weeks,
+                "worked_day_rows": worked_day_rows,
                 "weekday_workdays": weekday_workdays,
                 "additional_workdays": additional_workdays,
+                "calendar_day_count": calendar_day_count,
+                "monthly_business_days": monthly_business_days,
                 "unpaid_employees": unpaid_employees,
                 "absences": absences,
                 "notes": notes,
@@ -949,6 +1030,10 @@ def registros(
                 "years": [year - 1, year, year + 1],
                 "selected_month": month,
                 "selected_year": year,
+                "previous_month": previous_month,
+                "previous_year": previous_year,
+                "next_month": next_month_number,
+                "next_year": next_year,
                 "today": today,
             },
         )
@@ -962,6 +1047,7 @@ def toggle_calendar_day_type(
     month: int = Form(...),
     year: int = Form(...),
     employee_id: int = Form(...),
+    is_working_day: bool = Form(...),
 ):
     selected_date = parse_date(date_)
     db = get_session()
@@ -973,13 +1059,12 @@ def toggle_calendar_day_type(
                 .first()
             )
             if day_type:
-                day_type.is_working_day = not day_type.is_working_day
+                day_type.is_working_day = is_working_day
             else:
-                default_is_working = selected_date.weekday() < 5
                 db.add(
                     CalendarDay(
                         date=selected_date,
-                        is_working_day=not default_is_working,
+                        is_working_day=is_working_day,
                     )
                 )
             db.commit()
