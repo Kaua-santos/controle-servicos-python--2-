@@ -11,6 +11,7 @@ import hmac
 import os
 import re
 import time
+from calendar import monthrange
 from datetime import date, datetime
 from html import escape
 from pathlib import Path
@@ -25,7 +26,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from database import Base, SessionLocal, engine
-from models import Absence, Advance, Employee, Expense, MonthlySummary, Note, Payment
+from models import (
+    Absence,
+    Advance,
+    CalendarDay,
+    Employee,
+    Expense,
+    MonthlySummary,
+    Note,
+    Payment,
+    Workday,
+)
 
 
 def load_local_env() -> None:
@@ -823,6 +834,7 @@ def registros(
     tab: str = "faltas",
     month: int | None = None,
     year: int | None = None,
+    employee_id: int | None = None,
 ):
     db = get_session()
     try:
@@ -831,6 +843,70 @@ def registros(
         year = year or today.year
         employees = db.query(Employee).order_by(Employee.name).all()
         active_employees = [employee for employee in employees if employee.active]
+        calendar_employee = next(
+            (employee for employee in active_employees if employee.id == employee_id),
+            active_employees[0] if active_employees else None,
+        )
+        calendar_weeks = []
+        weekday_workdays = 0
+        additional_workdays = 0
+        if tab == "calendario":
+            try:
+                month_start = date(year, month, 1)
+            except ValueError:
+                month = today.month
+                year = today.year
+                month_start = date(year, month, 1)
+            next_month = date(year + (month == 12), month % 12 + 1, 1)
+            calendar_days = monthrange(year, month)[1]
+            calendar_dates = []
+            day_types = {
+                calendar_day.date: calendar_day.is_working_day
+                for calendar_day in db.query(CalendarDay)
+                .filter(
+                    CalendarDay.date >= month_start,
+                    CalendarDay.date < next_month,
+                )
+                .all()
+            }
+            if calendar_employee:
+                worked_dates = {
+                    workday.date
+                    for workday in db.query(Workday)
+                    .filter(
+                        Workday.employee_id == calendar_employee.id,
+                        Workday.date >= month_start,
+                        Workday.date < next_month,
+                    )
+                    .all()
+                }
+            else:
+                worked_dates = set()
+            calendar_dates.extend([None] * month_start.weekday())
+            for day_number in range(1, calendar_days + 1):
+                work_date = date(year, month, day_number)
+                is_worked = work_date in worked_dates
+                is_weekend = work_date.weekday() >= 5
+                is_working_day = day_types.get(work_date, not is_weekend)
+                if is_worked and not is_working_day:
+                    additional_workdays += 1
+                elif is_worked:
+                    weekday_workdays += 1
+                calendar_dates.append(
+                    {
+                        "date": work_date,
+                        "worked": is_worked,
+                        "weekend": is_weekend,
+                        "working_day": is_working_day,
+                        "holiday": not is_working_day and not is_weekend,
+                        "future": work_date > today,
+                    }
+                )
+            calendar_dates.extend([None] * ((-len(calendar_dates)) % 7))
+            calendar_weeks = [
+                calendar_dates[index : index + 7]
+                for index in range(0, len(calendar_dates), 7)
+            ]
         absences = db.query(Absence).order_by(Absence.date.desc()).all()
         notes = db.query(Note).order_by(Note.pinned.desc(), Note.created_at.desc()).all()
         advances = db.query(Advance).order_by(Advance.date.desc()).all()
@@ -856,6 +932,11 @@ def registros(
                 "page": "registros",
                 "tab": tab,
                 "employees": employees,
+                "active_employees": active_employees,
+                "calendar_employee": calendar_employee,
+                "calendar_weeks": calendar_weeks,
+                "weekday_workdays": weekday_workdays,
+                "additional_workdays": additional_workdays,
                 "unpaid_employees": unpaid_employees,
                 "absences": absences,
                 "notes": notes,
@@ -873,6 +954,71 @@ def registros(
         )
     finally:
         db.close()
+
+
+@app.post("/registros/calendario/tipo-dia")
+def toggle_calendar_day_type(
+    date_: str = Form(..., alias="date"),
+    month: int = Form(...),
+    year: int = Form(...),
+    employee_id: int = Form(...),
+):
+    selected_date = parse_date(date_)
+    db = get_session()
+    try:
+        if selected_date:
+            day_type = (
+                db.query(CalendarDay)
+                .filter(CalendarDay.date == selected_date)
+                .first()
+            )
+            if day_type:
+                day_type.is_working_day = not day_type.is_working_day
+            else:
+                default_is_working = selected_date.weekday() < 5
+                db.add(
+                    CalendarDay(
+                        date=selected_date,
+                        is_working_day=not default_is_working,
+                    )
+                )
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse(
+        f"/registros?tab=calendario&month={month}&year={year}&employee_id={employee_id}",
+        status_code=303,
+    )
+
+
+@app.post("/registros/calendario/toggle")
+def toggle_workday(
+    employee_id: int = Form(...),
+    date_: str = Form(..., alias="date"),
+    month: int = Form(...),
+    year: int = Form(...),
+):
+    work_date = parse_date(date_)
+    db = get_session()
+    try:
+        employee = db.get(Employee, employee_id)
+        if employee and employee.active and work_date and work_date <= date.today():
+            workday = (
+                db.query(Workday)
+                .filter(Workday.employee_id == employee_id, Workday.date == work_date)
+                .first()
+            )
+            if workday:
+                db.delete(workday)
+            else:
+                db.add(Workday(employee_id=employee_id, date=work_date))
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse(
+        f"/registros?tab=calendario&month={month}&year={year}&employee_id={employee_id}",
+        status_code=303,
+    )
 
 
 @app.post("/registros/faltas/novo")

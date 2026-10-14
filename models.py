@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -41,6 +42,9 @@ class Employee(Base):
     )
     payments = relationship(
         "Payment", back_populates="employee", cascade="all, delete-orphan"
+    )
+    workdays = relationship(
+        "Workday", back_populates="employee", cascade="all, delete-orphan"
     )
 
 
@@ -97,6 +101,31 @@ class Absence(Base):
     justified = Column(Boolean, nullable=False, default=False)
 
     employee = relationship("Employee", back_populates="absences")
+
+
+class Workday(Base):
+    """Dia trabalhado por um funcionário."""
+
+    __tablename__ = "workdays"
+    __table_args__ = (UniqueConstraint("employee_id", "date"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(
+        Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    date = Column(Date, nullable=False)
+
+    employee = relationship("Employee", back_populates="workdays")
+
+
+class CalendarDay(Base):
+    """Classificação compartilhada de uma data como útil ou não útil."""
+
+    __tablename__ = "calendar_days"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, nullable=False, unique=True, index=True)
+    is_working_day = Column(Boolean, nullable=False)
 
 
 class Advance(Base):

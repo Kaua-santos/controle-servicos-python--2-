@@ -7,11 +7,15 @@
   <div>
     <div class="page-eyebrow">Acompanhamento interno</div>
     <h2>Registros</h2>
-    <p class="page-desc">Faltas, lembretes e valores combinados, tudo no mesmo lugar.</p>
+    <p class="page-desc">Calendário de trabalho, faltas, lembretes e valores combinados.</p>
   </div>
 </div>
 
 <div class="tabs">
+  <a href="/registros?tab=calendario" class="tab-card {{ 'active' if tab == 'calendario' }}">
+    <div class="t-label">Calendário</div>
+    <div class="t-detail">Dias trabalhados</div>
+  </a>
   <a href="/registros?tab=faltas" class="tab-card {{ 'active' if tab == 'faltas' }}">
     <div class="t-label">Faltas</div>
     <div class="t-detail">{{ total_absence_days }} dias registrados</div>
@@ -25,6 +29,77 @@
     <div class="t-detail">{{ open_advance_total|money }} em aberto</div>
   </a>
 </div>
+
+{% if tab == 'calendario' %}
+  <form method="get" action="/registros" class="calendar-filters">
+    <input type="hidden" name="tab" value="calendario">
+    <div class="field">
+      <label for="calendar-employee">Funcionário</label>
+      <select class="input" id="calendar-employee" name="employee_id" required>
+        {% for e in active_employees %}
+        <option value="{{ e.id }}" {{ 'selected' if calendar_employee and calendar_employee.id == e.id }}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="calendar-month">Mês</label>
+      <select class="input" id="calendar-month" name="month">
+        {% for month_name in months %}<option value="{{ loop.index }}" {{ 'selected' if selected_month == loop.index }}>{{ month_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="calendar-year">Ano</label>
+      <select class="input" id="calendar-year" name="year">
+        {% for year_option in years %}<option value="{{ year_option }}" {{ 'selected' if selected_year == year_option }}>{{ year_option }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Ver calendário</button>
+  </form>
+
+  {% if calendar_employee %}
+  <section class="calendar-panel">
+    <div class="calendar-summary">
+      <div><span>Dias úteis trabalhados</span><strong>{{ weekday_workdays }}</strong></div>
+      <div><span>Dias adicionais (feriados e fins de semana)</span><strong>{{ additional_workdays }}</strong></div>
+    </div>
+    <div class="calendar-grid" aria-label="Calendário de {{ months[selected_month - 1] }} de {{ selected_year }}">
+      {% for weekday in ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] %}
+      <div class="calendar-weekday {{ 'weekend' if loop.index > 5 }}">{{ weekday }}</div>
+      {% endfor %}
+      {% for week in calendar_weeks %}
+        {% for day in week %}
+          {% if day %}
+          <div class="calendar-cell {{ 'weekend' if day.weekend }} {{ 'holiday' if day.holiday }}">
+            <form method="post" action="/registros/calendario/toggle" class="calendar-cell-form">
+              <input type="hidden" name="employee_id" value="{{ calendar_employee.id }}">
+              <input type="hidden" name="date" value="{{ day.date.isoformat() }}">
+              <input type="hidden" name="month" value="{{ selected_month }}">
+              <input type="hidden" name="year" value="{{ selected_year }}">
+              <button type="submit" class="calendar-day {{ 'worked' if day.worked }} {{ 'weekend' if day.weekend }} {{ 'holiday' if day.holiday }} {{ 'future' if day.future }}" aria-label="{{ day.date.strftime('%d/%m/%Y') }}: {{ 'trabalhado' if day.worked else 'não trabalhado' }}; {{ 'dia útil' if day.working_day else 'não útil' }}" {{ 'disabled' if day.future }}>
+                <span>{{ day.date.day }}</span>
+                {% if day.worked %}<small>{% if day.working_day %}Trabalhado{% elif day.holiday %}Adicional: feriado{% else %}Adicional: fim de semana{% endif %}</small>{% elif day.holiday %}<small>Feriado</small>{% elif day.weekend %}<small>Não útil</small>{% endif %}
+              </button>
+            </form>
+            <form method="post" action="/registros/calendario/tipo-dia" class="calendar-type-form">
+              <input type="hidden" name="employee_id" value="{{ calendar_employee.id }}">
+              <input type="hidden" name="date" value="{{ day.date.isoformat() }}">
+              <input type="hidden" name="month" value="{{ selected_month }}">
+              <input type="hidden" name="year" value="{{ selected_year }}">
+              <button type="submit" class="calendar-type-toggle" aria-label="{{ 'Tornar não útil' if day.working_day else 'Tornar útil' }} em {{ day.date.strftime('%d/%m/%Y') }}">{{ 'Definir feriado' if day.working_day else 'Tornar útil' }}</button>
+            </form>
+          </div>
+          {% else %}
+          <div class="calendar-day empty" aria-hidden="true"></div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+    <p class="calendar-help">Clique no dia para registrar o trabalho. Use “Definir feriado” ou “Tornar útil” para ajustar a classificação; mudanças valem para todos os funcionários.</p>
+  </section>
+  {% else %}
+  <div class="table-wrap"><div class="empty-state"><h3>Nenhum funcionário ativo</h3><p>Cadastre ou reative um funcionário para começar a registrar os dias trabalhados.</p></div></div>
+  {% endif %}
+{% endif %}
 
 {% if tab == 'faltas' %}
   <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
