@@ -51,13 +51,22 @@ def parse_database_url(value: str | None) -> URL:
             raise RuntimeError(
                 "DATABASE_URL inválida: informe o host do PostgreSQL do Aiven e codifique caracteres especiais da senha."
             )
+        if parsed_url.host.endswith(".aivencloud.com"):
+            query = dict(parsed_url.query)
+            query.setdefault("sslmode", "require")
+            parsed_url = parsed_url.set(query=query)
     return parsed_url
 
 DATABASE_URL = parse_database_url(os.environ.get("DATABASE_URL"))
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.drivername.startswith("sqlite") else {}
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

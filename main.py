@@ -25,20 +25,6 @@ from sqlalchemy import extract
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from database import Base, SessionLocal, engine
-from models import (
-    Absence,
-    Advance,
-    CalendarDay,
-    Employee,
-    Expense,
-    MonthlySummary,
-    Note,
-    Payment,
-    Workday,
-)
-
-
 def load_local_env() -> None:
     """Carrega o .env local sem substituir variáveis já configuradas."""
     env_path = Path(__file__).with_name(".env")
@@ -53,6 +39,19 @@ def load_local_env() -> None:
 
 
 load_local_env()
+
+from database import Base, SessionLocal, engine
+from models import (
+    Absence,
+    Advance,
+    CalendarDay,
+    Employee,
+    Expense,
+    MonthlySummary,
+    Note,
+    Payment,
+    Workday,
+)
 
 # Cria as tabelas no banco (se ainda não existirem)
 Base.metadata.create_all(bind=engine)
