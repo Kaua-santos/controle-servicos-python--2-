@@ -40,9 +40,7 @@ class Employee(Base):
     advances = relationship(
         "Advance", back_populates="employee", cascade="all, delete-orphan"
     )
-    payments = relationship(
-        "Payment", back_populates="employee", cascade="all, delete-orphan"
-    )
+    payments = relationship("Payment", back_populates="employee")
     workdays = relationship(
         "Workday", back_populates="employee", cascade="all, delete-orphan"
     )
@@ -77,7 +75,8 @@ class Payment(Base):
     expense_id = Column(
         Integer, ForeignKey("expenses.id", ondelete="CASCADE"), nullable=True
     )
-    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=True)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
+    employee_name = Column(String, nullable=True)
     amount = Column(Float, nullable=False, default=0)
     date = Column(Date, nullable=False)
     description = Column(String, nullable=True)

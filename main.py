@@ -21,7 +21,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import extract
+from sqlalchemy import extract, func, inspect as sqlalchemy_inspect
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -97,6 +97,27 @@ def migrate_payment_table() -> None:
 
 
 migrate_payment_table()
+
+
+def migrate_payment_employee_name() -> None:
+    """Adiciona e preenche o nome histórico dos pagamentos existentes."""
+    columns = {column["name"] for column in sqlalchemy_inspect(engine).get_columns("payments")}
+    if "employee_name" not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE payments ADD COLUMN employee_name VARCHAR")
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            """
+            UPDATE payments
+            SET employee_name = (
+                SELECT employees.name FROM employees WHERE employees.id = payments.employee_id
+            )
+            WHERE employee_name IS NULL AND employee_id IS NOT NULL
+            """
+        )
+
+
+migrate_payment_employee_name()
 
 app = FastAPI(title="Controle de Serviços")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -397,6 +418,9 @@ def save_monthly_summary(db: Session, month: int, year: int, total_cost: float) 
         .filter(MonthlySummary.month == month, MonthlySummary.year == year)
         .first()
     )
+    today = date.today()
+    if summary is not None and (year, month) < (today.year, today.month):
+        return summary
     if summary is None:
         summary = MonthlySummary(month=month, year=year)
         db.add(summary)
@@ -430,6 +454,12 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
 
         employees = db.query(Employee).all()
         active_employees = [e for e in employees if e.active]
+        period_end = date(year, month, monthrange(year, month)[1])
+        period_active_employees = [
+            employee
+            for employee in active_employees
+            if employee.hire_date is None or employee.hire_date <= period_end
+        ]
 
         settled_advances = (
             db.query(Advance)
@@ -464,7 +494,7 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
                 - settled_by_employee.get(e.id, 0)
                 - paid_by_employee.get(e.id, 0),
             )
-            for e in active_employees
+            for e in period_active_employees
         )
 
         month_expenses = (
@@ -482,7 +512,8 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
         monthly_advances_total = sum(a.amount for a in month_advances)
         monthly_payments_total = sum(payment.amount for payment in month_payments)
         monthly_total = monthly_expenses_total + monthly_payments_total
-        save_monthly_summary(db, month, year, monthly_total)
+        saved_summary = save_monthly_summary(db, month, year, monthly_total)
+        monthly_total = saved_summary.total_cost
         monthly_summaries = (
             db.query(MonthlySummary)
             .order_by(MonthlySummary.year.desc(), MonthlySummary.month.desc())
@@ -544,7 +575,7 @@ def dashboard(request: Request, month: int | None = None, year: int | None = Non
             "month": month,
             "year": year,
             "total_employees": len(employees),
-            "active_employees": len(active_employees),
+            "active_employees": len(period_active_employees),
             "monthly_payroll": monthly_payroll,
             "monthly_payments": monthly_payments_total,
             "settled_advances": sum(a.amount for a in settled_advances),
@@ -630,7 +661,7 @@ def create_employee(
             phone=normalize_phone(phone),
             email=email or None,
             salary=salary,
-            hire_date=parse_date(hire_date),
+            hire_date=parse_date(hire_date) or date.today(),
             active=bool(active),
         )
         db.add(employee)
@@ -687,6 +718,20 @@ def delete_employee(employee_id: int):
     try:
         employee = db.get(Employee, employee_id)
         if employee:
+            db.query(Expense).filter(
+                Expense.employee_id == employee_id
+            ).update({Expense.employee_id: None}, synchronize_session=False)
+            db.query(Payment).filter(
+                Payment.employee_id == employee_id
+            ).update(
+                {
+                    Payment.employee_id: None,
+                    Payment.employee_name: func.coalesce(
+                        Payment.employee_name, employee.name
+                    ),
+                },
+                synchronize_session=False,
+            )
             db.delete(employee)
             db.commit()
     finally:
@@ -713,6 +758,38 @@ def list_expenses(request: Request, month: int | None = None, year: int | None =
             .all()
         )
         total = sum(e.amount for e in expenses)
+        payments = (
+            db.query(Payment)
+            .filter(
+                extract("month", Payment.date) == month,
+                extract("year", Payment.date) == year,
+            )
+            .all()
+        )
+        monthly_movements = [
+            {
+                "kind": "expense",
+                "description": expense.description,
+                "detail": expense.category,
+                "person": expense.employee.name if expense.employee else "Operação geral",
+                "date": expense.date,
+                "amount": expense.amount,
+                "expense_id": expense.id,
+            }
+            for expense in expenses
+        ] + [
+            {
+                "kind": "payment",
+                "description": f"Pagamento · {payment.employee.name if payment.employee else payment.employee_name or 'Funcionário não informado'}",
+                "detail": payment.description or "Pagamento realizado",
+                "person": "Folha",
+                "date": payment.date,
+                "amount": payment.amount,
+                "expense_id": None,
+            }
+            for payment in payments
+        ]
+        monthly_movements.sort(key=lambda movement: movement["date"], reverse=True)
         employees = db.query(Employee).filter(Employee.active.is_(True)).order_by(Employee.name).all()
 
         return templates.TemplateResponse(
@@ -722,6 +799,9 @@ def list_expenses(request: Request, month: int | None = None, year: int | None =
                 "page": "gastos",
                 "expenses": expenses,
                 "total": total,
+                "monthly_movements": monthly_movements,
+                "movement_count": len(monthly_movements),
+                "movement_total": sum(movement["amount"] for movement in monthly_movements),
                 "employees": employees,
                 "categories": CATEGORIES,
                 "months": MONTHS,
@@ -842,6 +922,35 @@ def list_monthly_summaries(
                 .filter(MonthlySummary.month == month, MonthlySummary.year == year)
                 .first()
             )
+        paid_employees = []
+        if selected_summary:
+            month_payments = (
+                db.query(Payment)
+                .filter(
+                    extract("month", Payment.date) == selected_summary.month,
+                    extract("year", Payment.date) == selected_summary.year,
+                )
+                .all()
+            )
+            totals_by_employee = {}
+            for payment in month_payments:
+                employee_name = (
+                    (payment.employee.name if payment.employee else None)
+                    or payment.employee_name
+                    or "Funcionário sem identificação"
+                )
+                key = (
+                    ("employee", payment.employee_id)
+                    if payment.employee_id is not None
+                    else ("name", employee_name)
+                )
+                entry = totals_by_employee.setdefault(
+                    key, {"name": employee_name, "amount": 0.0}
+                )
+                entry["amount"] += payment.amount
+            paid_employees = sorted(
+                totals_by_employee.values(), key=lambda item: item["name"].casefold()
+            )
         return templates.TemplateResponse(
             request=request,
             name="fechamentos.html",
@@ -851,6 +960,7 @@ def list_monthly_summaries(
                 "months": MONTHS,
                 "today": date.today(),
                 "selected_summary": selected_summary,
+                "paid_employees": paid_employees,
             },
         )
     finally:
@@ -1281,6 +1391,7 @@ def create_payment(
         db.add(
             Payment(
                 employee_id=employee_id,
+                employee_name=employee.name,
                 amount=payment_amount,
                 date=payment_date,
                 description=description.strip() or None,

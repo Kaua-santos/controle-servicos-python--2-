@@ -175,6 +175,17 @@ img, svg, video { max-width: 100%; height: auto; }
 .selected-summary strong { font-family: var(--font-display); font-size: 18px; }
 .selected-summary-date { color: var(--muted-foreground); font-size: 11px; }
 .selected-summary-total { font-family: var(--font-display); font-size: 25px; font-weight: 700; white-space: nowrap; }
+.payment-breakdown { margin: 0 0 28px; border-top: 1px solid var(--border); }
+.payment-breakdown-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 18px 0 10px; }
+.payment-breakdown-heading h3 { margin: 0; font-family: var(--font-display); font-size: 18px; }
+.payment-breakdown-heading span { color: var(--muted-foreground); font-size: 11px; }
+.payment-breakdown-table { width: 100%; border-collapse: collapse; color: var(--foreground); font-size: 13px; }
+.payment-breakdown-table th, .payment-breakdown-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: left; }
+.payment-breakdown-table th { color: var(--muted-foreground); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.payment-breakdown-table th:last-child, .payment-breakdown-table td:last-child { text-align: right; white-space: nowrap; }
+.payment-breakdown-table td:last-child { font-family: var(--font-mono); font-weight: 700; }
+.payment-breakdown-empty { padding: 12px 0; color: var(--muted-foreground); font-size: 12px; }
+.closure-payment-title { margin: 12mm 0 3mm; color: #263a37; font-size: 12pt; }
 .print-sheet { display: none; }
 .print-action { white-space: nowrap; }
 .calendar-print-sheet { display: none; }
@@ -183,7 +194,7 @@ img, svg, video { max-width: 100%; height: auto; }
 @media print {
   @page { size: A4; margin: 18mm; }
   body { background: #fff; color: #111; }
-  .sidebar, .topbar, .page-header, .history-hero, .selected-summary, .summary-grid, .empty-state, .modal-backdrop,
+  .sidebar, .topbar, .page-header, .history-hero, .selected-summary, .payment-breakdown, .summary-grid, .empty-state, .modal-backdrop,
   .tabs, .calendar-month-nav, .calendar-filters, .calendar-panel, .calendar-help { display: none !important; }
   .layout, .main, .content { display: block; min-height: 0; width: auto; max-width: none; }
   .content { padding: 0; }
@@ -194,6 +205,19 @@ img, svg, video { max-width: 100%; height: auto; }
     border: 1px solid #c7cecc;
     color: #111;
   }
+  .closure-print-sheet { min-height: auto; padding: 8mm; border: 0; }
+  .closure-print-sheet .print-sheet-heading { padding-bottom: 7mm; }
+  .closure-print-sheet .print-sheet-total-label { margin-top: 12mm; }
+  .closure-print-sheet .print-sheet-total { font-size: 26pt; }
+  .closure-print-sheet .print-sheet-meta { margin-top: 2mm; }
+  .closure-print-sheet .closure-payment-title { margin: 10mm 0 3mm; }
+  .closure-print-sheet .payment-breakdown-table { color: #111; font-size: 10pt; }
+  .closure-print-sheet .payment-breakdown-table thead { display: table-header-group; }
+  .closure-print-sheet .payment-breakdown-table tr { break-inside: avoid; }
+  .closure-print-sheet .payment-breakdown-table th,
+  .closure-print-sheet .payment-breakdown-table td { padding: 2.5mm 3mm; border-bottom: 1px solid #d9dfdd; }
+  .closure-print-sheet .payment-breakdown-table th { background: #edf2f0; color: #263a37; }
+  .closure-print-sheet .print-sheet-signatures { gap: 18mm; margin-top: 22mm; break-inside: avoid; }
   .calendar-print-sheet { display: block !important; min-height: auto; padding: 8mm; }
   .calendar-print-sheet .print-sheet-heading { flex-wrap: wrap; }
   .calendar-print-sheet .print-sheet-period { white-space: normal; }
@@ -290,6 +314,18 @@ img, svg, video { max-width: 100%; height: auto; }
 
 /* Filters / toolbar */
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: center; }
+.expense-period-summary { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; padding: 10px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.expense-period-summary > div { display: grid; gap: 3px; }
+.expense-period-summary span { color: var(--muted-foreground); font-size: 10px; }
+.expense-period-summary strong { font-family: var(--font-mono); font-size: 14px; }
+.expense-history { margin-top: 8px; }
+.expense-history-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 12px; }
+.expense-history-heading h3 { margin: 0; font-family: var(--font-display); font-size: 18px; }
+.expense-history-heading p { margin: 4px 0 0; color: var(--muted-foreground); font-size: 11px; }
+.expense-history .table-wrap { padding: 0; }
+.expense-history .row { gap: 13px; }
+.expense-history .movement-icon { width: 34px; height: 34px; flex: 0 0 34px; }
+.expense-history .movement-kind { font-size: 10px; font-weight: 700; }
 .input, select, textarea {
   width: 100%;
   min-width: 0;
@@ -538,6 +574,10 @@ form.inline { display: inline; }
   .toolbar, .toolbar form { width: 100%; }
   .toolbar .input, .toolbar select { flex: 1 1 100%; min-width: 0; }
   .toolbar > .card { width: 100%; justify-content: space-between; }
+  .expense-period-summary { width: 100%; justify-content: space-between; gap: 12px; }
+  .expense-period-summary > div { min-width: 0; }
+  .expense-period-summary strong { font-size: 12px; }
+  .expense-history .row-side { justify-content: flex-start; }
   .pill-group { width: 100%; }
   .pill { flex: 1; }
   .form-card { padding: 16px; }

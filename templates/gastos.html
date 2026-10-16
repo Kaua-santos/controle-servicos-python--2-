@@ -53,35 +53,49 @@
       {% endfor %}
     </select>
   </form>
-  <div class="card" style="padding:10px 16px; display:flex; gap:10px; align-items:center;">
-    <span style="font-size:12px; color:var(--muted-foreground);">Total no período</span>
-    <span class="amount">{{ total|money }}</span>
+  <div class="expense-period-summary">
+    <div><span>Total de gastos</span><strong>{{ total|money }}</strong></div>
+    <div><span>Movimentações</span><strong>{{ movement_count }}</strong></div>
+    <div><span>Total movimentado</span><strong>{{ movement_total|money }}</strong></div>
   </div>
 </div>
 
-<div class="table-wrap">
-  {% if not expenses %}
+<section class="expense-history">
+  <div class="expense-history-heading">
+    <div>
+      <h3>Histórico do mês</h3>
+      <p>{{ months[selected_month - 1] }} de {{ selected_year }} · gastos e pagamentos</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+  {% if not monthly_movements %}
   <div class="empty-state">
     <h3>Nada por aqui ainda</h3>
-    <p>Nenhum gasto lançado em {{ months[selected_month - 1] }} de {{ selected_year }}.</p>
+    <p>Nenhuma movimentação em {{ months[selected_month - 1] }} de {{ selected_year }}.</p>
   </div>
   {% else %}
-  {% for e in expenses %}
+  {% for movement in monthly_movements %}
   <div class="row">
+    <div class="movement-icon {{ 'movement-icon-payment' if movement.kind == 'payment' else 'movement-icon-expense' }}">
+      {{ '+' if movement.kind == 'payment' else '−' }}
+    </div>
     <div class="row-main">
-      <div class="row-title">{{ e.description }}</div>
-      <div class="row-sub">{{ e.employee.name if e.employee else 'Operação geral' }}</div>
+      <div class="row-title">{{ movement.description }}</div>
+      <div class="row-sub">{{ movement.detail }} · {{ movement.person }}</div>
     </div>
     <div class="row-side">
-      <span>{{ e.category }}</span>
-      <span>{{ e.date|data }}</span>
-      <span class="amount">{{ e.amount|money }}</span>
-      <form method="post" action="/gastos/{{ e.id }}/excluir" class="inline" data-confirm="Excluir este gasto? Essa ação não pode ser desfeita.">
+      <span class="movement-kind {{ 'movement-kind-payment' if movement.kind == 'payment' else 'movement-kind-expense' }}">{{ 'Pagamento' if movement.kind == 'payment' else 'Gasto' }}</span>
+      <span>{{ movement.date|data }}</span>
+      <span class="amount {{ 'movement-payment' if movement.kind == 'payment' else 'movement-expense' }}">{{ movement.amount|money }}</span>
+      {% if movement.expense_id %}
+      <form method="post" action="/gastos/{{ movement.expense_id }}/excluir" class="inline" data-confirm="Excluir este gasto? Essa ação não pode ser desfeita.">
         <button type="submit" class="btn btn-ghost btn-sm">Excluir</button>
       </form>
+      {% endif %}
     </div>
   </div>
   {% endfor %}
   {% endif %}
-</div>
+  </div>
+</section>
 {% endblock %}

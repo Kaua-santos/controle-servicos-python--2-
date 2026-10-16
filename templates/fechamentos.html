@@ -2,6 +2,21 @@
 {% block title %}Fechamentos · Controle de Serviços{% endblock %}
 {% block page_title %}Fechamentos{% endblock %}
 
+{% macro payments_table(rows) %}
+{% if rows %}
+<table class="payment-breakdown-table">
+  <thead><tr><th>Funcionário</th><th>Valor pago</th></tr></thead>
+  <tbody>
+    {% for item in rows %}
+    <tr><td>{{ item.name }}</td><td>{{ item.amount|money }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="payment-breakdown-empty">Nenhum pagamento registrado neste mês.</p>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
   <div>
@@ -32,7 +47,14 @@
   </div>
   <div class="selected-summary-total">{{ selected_summary.total_cost|money }}</div>
 </div>
-<section class="print-sheet">
+<section class="payment-breakdown">
+  <div class="payment-breakdown-heading">
+    <h3>Pagamentos por funcionário</h3>
+    <span>{% if paid_employees|length == 1 %}1 funcionário pago{% else %}{{ paid_employees|length }} funcionários pagos{% endif %}</span>
+  </div>
+  {{ payments_table(paid_employees) }}
+</section>
+<section class="print-sheet closure-print-sheet">
   <div class="print-sheet-heading">
     <div>
       <span class="print-sheet-kicker">Controle de Serviços</span>
@@ -43,6 +65,8 @@
   <div class="print-sheet-total-label">Custo total realizado</div>
   <div class="print-sheet-total">{{ selected_summary.total_cost|money }}</div>
   <div class="print-sheet-meta">Atualizado em {{ selected_summary.updated_at|data }}</div>
+  <h4 class="closure-payment-title">Pagamentos por funcionário</h4>
+  {{ payments_table(paid_employees) }}
   <div class="print-sheet-signatures">
     <div><span></span><small>Responsável pelo fechamento</small></div>
     <div><span></span><small>Conferência</small></div>
